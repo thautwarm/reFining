@@ -161,3 +161,41 @@ def _infer_out(a: DiscreteUnion, collect: _SKV):
         - if many succeed, union them all as a new discrete union.
     """
     return a
+
+
+@overload
+def _infer_out(a: Any, collect: _SKV):
+    return a
+
+
+@overload
+def _infer_out(a: RecordType, collect: _SKV):
+    return RecordType(FrozenDict(**{k: _infer_out(v, collect) for k, v in a.fields.items()}), a.extra_data)
+
+
+@overload
+def _infer_out(a: Value, collect: _SKV):
+    return a.subs(((k, v) for k, v in collect if isinstance(k, sympy.Symbol)))
+
+
+@overload
+def _infer_out(a: Function, collect: _SKV):
+    arg = _infer_out(a.arg, collect)
+    eqg = _infer_out(a.eqg, collect)
+    ret = _infer_out(a.ret, collect)
+    return Function(arg, eqg, ret, a.extra_data)
+
+
+@overload
+def _infer_out(a: EquationGroup, collect: _SKV):
+    return EquationGroup(tuple(_infer_out(each, collect) for each in a.eqs), a.extra_data)
+
+
+@overload
+def _infer_our(a: Equation, collect: _SKV):
+    """
+    The most important
+    """
+    from refining.solver import solve
+    l, r = solve(a.left, a.right)
+    return Equation(l, r, a.extra_data)
