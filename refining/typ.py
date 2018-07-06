@@ -38,8 +38,9 @@ class BasicType(TypeClass):
 class TupleType(TypeClass):
     types: typing.Tuple[TypeClass, ...]
 
-    def __init__(self, types: typing.Tuple[TypeClass, ...]):
+    def __init__(self, types: typing.Tuple[TypeClass, ...], extra_data=None):
         self.types = types
+        self.extra_data = extra_data
 
     def __str__(self):
         return '({})'.format(' '.join(map(str, self.types)))
@@ -93,7 +94,7 @@ class Slot(Undecided):
         return '\'{}'.format(self.name_str)
 
 
-class ConcreteUnion(Undecided):
+class DiscreteUnion(Undecided):
     """
     sometimes an occurrence cannot be completely decided, we use this one to represent the type instead of Any
     """
@@ -104,7 +105,9 @@ class ConcreteUnion(Undecided):
 
 
 class Any(Undecided):
-    pass
+
+    def __init__(self, extra_data):
+        self.extra_data = extra_data
 
 
 class RecordType(TypeClass):
