@@ -30,6 +30,7 @@ class Function(TypeClass):
         self.arg = arg
         self.eqg = eqg
         self.ret = ret
+        self.extra_data = extra_data
 
     def __str__(self):
         return 'λ{}. {}[{}]'.format(self.arg, self.ret, self.eqg)
