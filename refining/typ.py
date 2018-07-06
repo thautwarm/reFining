@@ -14,7 +14,7 @@ class TypeClass:
 
     def __eq__(self, other: 'TypeClass'):
         annotations = self.__annotations__
-        if isinstance(other, TypeClass) or annotations is not other.__annotations__:
+        if self.__class__ is not other.__class__:
             # assert self.__class__ is other.__class__
             # checking if id of annotations matches also means to check if type id matches.
             return False
