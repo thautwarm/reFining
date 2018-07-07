@@ -1,0 +1,70 @@
+import std.common.[Name Space Number DoubleQuotedStr Comment]
+pyimport refining.types.[*]
+ignore [Space]
+
+SingleQuote := R'\''
+keyword cast := 'let' 'in' 'type' 'fn'
+
+Sym ::= Name as n [':' Type as ty]
+        rewrite
+            r = Id(n.value)
+            if ty:
+                r = Annotate(r, ty)
+            r
+
+Str ::= DoubleQuotedStr+ as seq
+        rewrite
+            Const(''.join(e.value for e in seq))
+
+Num ::= Number as num
+        rewrite
+            Const(int(num.value))
+
+Let ::=
+    | 'let' Sym as sym '=' Expr as value 'in' Expr as do
+    rewrite
+        Let(sym, value, do)
+
+Expr ::= | Let as v
+         | App as v
+         | TypeDef as v
+         rewrite v
+
+App  ::= Atom+ as seq
+         rewrite
+            head, *tail = seq
+            if tail:
+                for e in tail:
+                    head = App(head, e)
+            head
+
+Lam ::= 'fn' Sym as sym '->' Expr as ret
+         rewrite
+            Lam(sym, ret)
+
+Atom ::= | '(' Expr as v ')' [':' Type as ty]
+         | Num as v  [':' Type as ty]
+         | Sym as v  [':' Type as ty]
+         | Str as v  [':' Type as ty]
+         | Lam as v  [':' Type as ty]
+         rewrite Annotate(v, ty) if ty else v
+
+
+Type    ::=
+            | Type as _11 '->' Type as _12
+            | '(' Type as _2 ')'
+            | Name as _3
+            | SingleQuote Name as _4
+            rewrite
+                TVar(None, None, '#' + _4.value) if _4 else\
+                TVar(None, None, _3.value) if _3 else\
+                _2 if _2 else\
+                TFnSig(_11, _12)
+
+TypeDef ::= 'type' Name as name '=' Type as ty
+            rewrite
+                Alias(name.value, ty)
+
+Grammar  ::= (Expr [';'])+ as seq
+            rewrite
+                Stmts(tuple(e for e in seq if Eq in e.__class__.__mro__))
