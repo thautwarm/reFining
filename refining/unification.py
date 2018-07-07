@@ -41,6 +41,9 @@ def fresh(t: Type, non_generic_types: typing.Set[TVar]):
 
     def freshrec(tp: Type):
         pruned_tp = tp.prune()
+        if isinstance(pruned_tp, Basic):
+            return pruned_tp
+
         if isinstance(pruned_tp, TVar):
             if is_generic(pruned_tp, non_generic_types):
                 looked = table.get(pruned_tp)
@@ -78,6 +81,8 @@ def unify(t1: Type, t2: Type):
             # pr2 = TVar(_, None, _)
             assert pr2.ty is None
             pr2.ty = pr1
+        else:
+            raise TypeError
 
     elif isinstance(pr1, TVar):
         # pr1 = TVar(_, None, _)
@@ -90,21 +95,28 @@ def unify(t1: Type, t2: Type):
                 raise TypeError("recursive unification")
             pr1.ty = pr2
 
-    elif isinstance(pr1, TFnSig) and isinstance(pr2, TVar):
-        unify(pr2, pr1)
 
-    elif isinstance(pr1, TFnSig) and isinstance(pr2, TFnSig):
-        unify(pr1.left, pr2.left)
-        unify(pr1.left, pr2.right)
+    elif isinstance(pr1, TFnSig):
+        if isinstance(pr2, TVar):
+            unify(pr2, pr1)
+        elif isinstance(pr2, TFnSig):
+            unify(pr1.left, pr2.left)
+            unify(pr1.right, pr2.right)
+        elif isinstance(pr2, Basic):
+            raise TypeError
 
 
 def specify_type(ty: Type, env: Env):
     if isinstance(ty, TVar):
-        assert ty.name is not None
         specify_type(ty.ty, env)
         name = ty.name
         looked = next((v for _, v in env if v.name == name), None)
+
         if looked is None:
+            if ty.ty is None:
+                env.append((name, ty))
+                return ty
+
             raise NameError(name)
         else:
             ty.ty = looked
@@ -146,6 +158,7 @@ def analyse(term_: Term, env_: Env):
             new_ty = TVar.new()
             if isinstance(tag, Annotate):
                 manual_ty = tag.ty
+                specify_type(manual_ty, env)
                 tag = tag.term
                 unify(new_ty, manual_ty)
 
@@ -163,6 +176,7 @@ def analyse(term_: Term, env_: Env):
             ty = term.ty
             t = analyse_it(term.term)
             specify_type(term.ty, env)
+
             unify(t, ty)
             return t
 
@@ -175,9 +189,9 @@ def analyse(term_: Term, env_: Env):
 
             # if support overwrite, we can implement a nested type env with
             #  correct inheritances.
-
-            env.append((name, term.typ))
-            return TVar.new(None, term.typ, name)
+            n_ty = TVar.new(None, term.typ, name)
+            env.append(('.{}'.format(name), n_ty))
+            return n_ty
 
         elif isinstance(term, Stmts):
             return Flow(tuple(analyse_it(each) for each in term.terms))

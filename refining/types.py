@@ -36,9 +36,11 @@ class TVar(UniqueHash, Eq, Hint):
 
     def prune(self):
         ty = self.ty
-        if ty is not None and isinstance(ty, TVar):
-            self.ty = ty = ty.prune()
+        if ty is not None:
+            ty = ty.prune()
+            self.ty = ty
             return ty  # no box
+
         return self
 
     def __repr__(self):
