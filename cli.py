@@ -1,10 +1,11 @@
 from refining.unification import *
 import rbnf.zero as ze
-import readline, io, sys 
+import readline, io, sys
 
 KeyWords = ['let', 'in', 'type', 'fn']
 env = [('.i', Basic('int')), ('.s', Basic('str'))]
 ze_exp = ze.compile('import simple.[*]', use='Grammar')
+
 
 def err_write(info):
     if isinstance(sys.stderr, io.BufferedWriter):
@@ -41,22 +42,22 @@ def main():
             if it is None:
                 raise Exception
             if it.state.end_index != len(it.tokens):
-                idx = min(it.state.max_fetched, len(it.tokens)-1)
+                idx = min(it.state.max_fetched, len(it.tokens) - 1)
                 tk = it.tokens[idx]
                 raise SyntaxError("line {}, column {}".format(tk.lineno, tk.colno))
             res = it.result
             if res is not None:
                 print('=> ', analyse(res, env).types[-1])
         except Exception as e:
-        	sys.exc_info()
-            # err_write(e.__class__.__name__ + ':' + str(e) + '\n')
+            sys.exc_info()
+        # err_write(e.__class__.__name__ + ':' + str(e) + '\n')
 
         cache.clear()
         count_parentheses = 0
 
     while True:
         line: str = input('reF> ' if not cache else '      ')
-        
+
         if line.endswith(';;'):
             line = line[:-2]
             if not line and not cache:
