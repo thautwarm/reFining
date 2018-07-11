@@ -1,12 +1,7 @@
 import typing
-from typing import NamedTuple
-from Redy.Magic.Classic import record
 import operator
-from collections import namedtuple
 import abc
 
-globals()['NamedTuple'] = object
-Sym = str
 
 
 class TypeImpl(abc.ABC):
@@ -189,15 +184,10 @@ class Undecided(TypeImpl):
         return self is other
 
 
-# class Context:
-#     type_env: typing.List[typing.Tuple[Sym, TypeVar]]
-#     bound_vars: typing.List[str]
-#     free_vars: typing.List[str]
+if __name__ == '__main__':
+    a = Undecided(None)
+    b = Undecided(None)
+    i32 = Basic("i32")
+    tp1 = Tuple({'a': a, 'i': i32})
 
-
-a = Undecided(None)
-b = Undecided(None)
-i32 = Basic("i32")
-tp1 = Tuple({'a': a, 'i': i32})
-
-print(a.occur_in([tp1]))
+    print(a.occur_in([tp1]))
