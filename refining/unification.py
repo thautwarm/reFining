@@ -2,7 +2,6 @@ from .types import *
 import typing
 
 globals()['Hint'] = object
-globals()['isinstance'] = isa
 
 
 def occurs_in_type(v_, t2_: Type):

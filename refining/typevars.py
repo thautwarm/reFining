@@ -1,104 +1,118 @@
 import typing
-import operator
 import abc
 
+_not_initialized = object()
 
 
-class TypeImpl(abc.ABC):
-    t = typing.Union['ADT', 'Record', 'Tuple', 'ADT', 'Induct', 'Basic', 'Undecided']
+class TypeOperator:
+    representation: str
+    unify_method: typing.Optional[typing.Callable[['TypeImpl', 'TypeImpl'], bool]]
 
-    def __init__(self, components: typing.Dict[object, 'TypeImpl.t']):
-        self.components = components
-
-    def prune(self) -> typing.Tuple[bool, 'TypeImpl']:
-        components = self.components
-        pruned_map = {key: impl for key, (is_pruned, impl) in ((key, impl.prune()) for key, impl in components.items())
-                      if is_pruned}
-        if pruned_map:
-            components.update(pruned_map)
-            return True, self
-        return False, self
-
-    def iter_fields(self):
-        for each in self.components.values():
-            yield from each.iter_fields()
-
-    def occur_in(self, types: typing.Iterable['TypeImpl.t']):
-        return any(map(lambda this: this.occur_in(types), self.iter_fields()))
-
-    @property
-    @abc.abstractmethod
-    def components(self) -> typing.Dict[object, 'TypeImpl.t']:
-        raise NotImplemented
-
-    @components.setter
-    @abc.abstractmethod
-    def components(self, value: typing.Dict[object, 'TypeImpl.t']):
-        raise NotImplemented
+    def __init__(self, representation: str, unify_method=None):
+        self.representation = representation
+        self.unify_method = unify_method
 
     def __eq__(self, other):
-        return type(self) is type(other) and all(map(operator.eq, self.components, other.components))
-
-    def __hash__(self):
-        return id(self)
+        return self is other
 
     def __repr__(self):
-        cls_name = self.__class__.__name__
-        return '{}({})'.format(cls_name, ', '.join(map(repr, self.components)))
+        return self.representation
+
+    @staticmethod
+    def default_unify(left: 'TypeImpl', right: 'TypeImpl'):
+        if not isinstance(right, TypeImpl):
+            return False
+        return right.op == left.op and left.left.unify(right.left) and left.right.unify(right.right)
+
+    def operator_unify(self, left: 'TypeImpl', right: 'TypeImpl') -> bool:
+        if self.unify_method:
+            return self.unify_method(left, right)
+        return self.default_unify(left, right)
 
 
-class Tuple(TypeImpl):
-    elements: typing.Dict[int, TypeImpl.t]
+class TypeVar(abc.ABC):
+    t = typing.Union['TypeVar', 'TypeImpl', 'Basic', 'Undecided']
 
-    @property
-    def components(self):
-        return self.elements
+    @abc.abstractmethod
+    def iter_fields(self) -> typing.Iterable['TypeVar']:
+        raise NotImplemented
 
-    @components.setter
-    def components(self, value):
-        self.elements = value
+    @abc.abstractmethod
+    def prune(self) -> typing.Tuple[bool, 'TypeVar']:
+        raise NotImplemented
 
+    @abc.abstractmethod
+    def occur_in(self, types: typing.Iterable['TypeVar']) -> bool:
+        raise NotImplemented
 
-class ADT(TypeImpl):
-    cases: typing.Dict[str, TypeImpl.t]
+    @abc.abstractmethod
+    def unify_impl(self, other: 'TypeVar') -> bool:
+        raise NotImplemented
 
-    @property
-    def components(self):
-        return self.cases
+    @abc.abstractmethod
+    def fresh_impl(self, non_generic_var_mapping: typing.Dict['Undecided', typing.Optional['Undecided']]):
+        raise NotImplemented
 
-    @components.setter
-    def components(self, value):
-        self.cases = value
+    def unify(self, other: 'TypeVar'):
+        _, left = self.prune()
+        _, right = other.prune()
+        if isinstance(right, Undecided):
+            left, right = right, left
+        return left.unify_impl(right)
 
-
-class Record(TypeImpl):
-    fields: typing.Dict[str, TypeImpl.t]
-
-    @property
-    def components(self):
-        return self.fields
-
-    @components.setter
-    def components(self, value):
-        self.fields = value
-
-
-class Induct(TypeImpl):
-    factors: typing.Dict[str, TypeImpl.t]
-
-    @property
-    def components(self):
-        return self.factors
-
-    @components.setter
-    def components(self, value):
-        self.factors = value
+    def fresh(self, non_generic_var_mapping: typing.Dict['Undecided', typing.Optional['Undecided']]) -> typing.Tuple[
+        bool, 'TypeVar.t']:
+        _, pruned_ty = self.prune()
+        return pruned_ty.fresh_impl(non_generic_var_mapping)
 
 
-type_name_unique_id = 0
+class TypeImpl(TypeVar):
+    op: TypeOperator
+    left: 'TypeImpl'
+    right: 'TypeImpl'
+
+    def __init__(self, op: 'TypeOperator', left: 'TypeImpl', right: 'TypeImpl'):
+        self.op = op
+        self.left = left
+        self.right = right
+
+    def iter_fields(self):
+        yield from self.left.iter_fields()
+        yield from self.right.iter_fields()
+
+    def prune(self) -> typing.Tuple[bool, 'TypeVar']:
+        is_left_pruned, left = self.left.prune()
+        if is_left_pruned:
+            self.left = left
+        is_right_pruned, right = self.left.prune()
+
+        if is_right_pruned:
+            self.right = right
+        return is_left_pruned or is_right_pruned, self
+
+    def fresh_impl(self, non_generic_var_mapping: typing.Dict['Undecided', typing.Optional['Undecided']]):
+        is_left_freshed, left = self.left.fresh(non_generic_var_mapping)
+        is_right_freshed, right = self.right.fresh(non_generic_var_mapping)
+        if is_left_freshed or is_right_freshed:
+            return True, TypeImpl(self.op, left, right)
+        return False, self
+
+    def occur_in(self, types):
+        return self.left.occur_in(types) or self.right.occur_in(types)
+
+    def unify_impl(self, other: 'TypeImpl'):
+        return self.op.operator_unify(self, other)
+
+    def __repr__(self):
+        left = self.left
+        left_repr = ('({!r})'.format if isinstance(left, TypeImpl) else repr)(left)
+        return '{} {!r} {!r}'.format(left_repr, self.op, self.right)
 
 
-class Basic(TypeImpl):
+type_var_unique_id = 0
+
+
+class Basic(TypeVar):
     name: str
     _unique_id = id
 
@@ -108,38 +122,30 @@ class Basic(TypeImpl):
         self._unique_id = type_name_unique_id
         type_name_unique_id += 1
 
-    @property
-    def components(self):
-        raise TypeError('Basic type holds no components.')
-
-    @components.setter
-    def components(self, value):
-        raise TypeError('Basic type holds no components.')
-
     def prune(self):
         return False, self
 
     def iter_fields(self):
         yield self
 
-    def occur_in(self, types: typing.Iterable['TypeImpl.t']) -> bool:
+    def occur_in(self, types: typing.Iterable['TypeVar']) -> bool:
         return False
+
+    def fresh_impl(self, non_generic_var_mapping: typing.Dict['Undecided', typing.Optional['Undecided']]):
+        return False, self
+
+    def unify_impl(self, other: 'TypeVar'):
+        return self is other
 
     def __repr__(self):
         return '{}`{}'.format(self.name, self._unique_id)
 
-    def __hash__(self):
-        return id(self)
 
-    def __eq__(self, other):
-        return self is other
+type_name_unique_id = 0
 
 
-type_var_unique_id = 0
-
-
-class Undecided(TypeImpl):
-    ref: typing.Optional[TypeImpl.t]
+class Undecided(TypeVar):
+    ref: typing.Optional[TypeVar]
     _unique_id: int
 
     def __init__(self, ref):
@@ -148,46 +154,75 @@ class Undecided(TypeImpl):
         self._unique_id = type_var_unique_id
         type_var_unique_id += 1
 
-    @property
-    def components(self):
-        raise TypeError('Basic type holds no components.')
-
-    @components.setter
-    def components(self, value):
-        raise TypeError('Basic type holds no components.')
-
     def prune(self):
         ref = self.ref
         if ref is None:
             return False, self
-
         self.ref = ref.prune()
         return True, ref
 
     def iter_fields(self):
         yield self
 
-    def occur_in(self, types: typing.Iterable['TypeImpl.t']) -> bool:
+    def occur_in(self, types: typing.Iterable[TypeVar]) -> bool:
         _, undecided = self.prune()
         for each in types:
             if undecided in each.iter_fields():
                 return True
         return False
 
-    def __repr__(self):
-        return '`#{}'.format(self._unique_id)
+    def unify_impl(self, other: 'TypeVar'):
+        assert self.ref is None
+        if isinstance(other, Basic):
+            self.ref = other
+        elif self is not other:
+            if self.occur_in([other]):
+                return False  # raise TypeError("recursive type.")
+            self.ref = other
 
-    def __hash__(self):
-        return id(self)
+        # else self is other
+        return True
 
-    def __eq__(self, other):
-        return self is other
+    def fresh_impl(self, non_generic_var_mapping: typing.Dict['Undecided', typing.Optional['Undecided']]):
+        if not self.occur_in(non_generic_var_mapping):
+            looked = non_generic_var_mapping.get(self)
+            if looked is None:
+                freshed_var = non_generic_var_mapping[self] = Undecided(None)
+                return True, freshed_var
+            return True, looked
+        return False, self
+
+
+func_op = TypeOperator('->')
+join_op = TypeOperator('*')
+induct_op = TypeOperator('of')
+union_op = TypeOperator('|')
+
+
+def make_basic(name: str):
+    return Basic(name)
+
+
+def make_function(left, right):
+    return TypeImpl(func_op, left, right)
+
+
+def make_join(left, right):
+    return TypeImpl(join_op, left, right)
+
+
+def make_union(left, right):
+    return TypeImpl(union_op, left, right)
+
+
+def make_induct(left, right):
+    return TypeImpl(induct_op, left, right)
 
 
 if __name__ == '__main__':
     a = Undecided(None)
     b = Undecided(None)
     i32 = Basic("i32")
-    tp1 = Tuple({'a': a, 'i': i32})
+    tp1 = make_join(i32, a)
 
     print(a.occur_in([tp1]))

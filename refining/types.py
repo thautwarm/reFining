@@ -3,7 +3,6 @@ from .asdl import *
 _next_unique_id = 0
 _next_unique_name = '#.1'
 globals()['Hint'] = object
-globals()['isinstance'] = isa
 
 
 class TVar(UniqueHash, Eq, Hint):

@@ -3,9 +3,7 @@ import typing
 
 Hint = typing.NamedTuple
 
-isa = lambda a, b: a.__class__ is b
 globals()['Hint'] = object
-globals()['isinstance'] = isa
 
 
 class Eq:

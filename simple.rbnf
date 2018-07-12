@@ -1,9 +1,9 @@
 import std.common.[Name Space Number DoubleQuotedStr Comment]
-pyimport refining.types.[*]
+pyimport refining.reunify.[*]
 ignore [Space]
 
 SingleQuote := R'\''
-keyword cast := 'let' 'in' 'type' 'fn'
+keyword cast := 'let' 'in' 'type' 'fn' 'of'
 
 Sym ::= Name as n [':' Type as ty]
         rewrite
@@ -51,19 +51,25 @@ Atom ::= | '(' Expr as v ')' [':' Type as ty]
 
 
 Type    ::=
-            | Type as _11 '->' Type as _12
-            | '(' Type as _2 ')'
-            | Name as _3
-            | SingleQuote Name as _4
+            | Type as head '->' as fn Type as tail
+            | Type as head '*'  as tp Type as tail
+            | '(' Type as nested ')'
+            | Name as name ['of' Type as args]
+            | SingleQuote Name as undecided
             rewrite
-                TVar(None, None, '#' + _4.value) if _4 else\
-                TVar(None, None, _3.value) if _3 else\
-                _2 if _2 else\
-                TFnSig(_11, _12)
 
-TypeDef ::= 'type' Name as name '=' Type as ty
+                TypeFunction(head, tail) if fn else\
+                TypeJoin(head, tail) if tp else\
+                nested if nested else\
+                TypeInduct(name.value, args) if args else\
+                TypeSym(name.value) if name else\
+                TypeSlot(undecided.value)
+
+
+TypeDef ::= 'type' Name as name ['of' Type as induct_arg] '=' Type as expand
             rewrite
-                Alias(name.value, ty)
+                TypeDef(TypeInduct(name.value, induct_arg), expand) \
+                if induct_arg else TypeAbbr(name.value, expand)
 
 Grammar  ::= (Expr [';'])+ as seq
             rewrite
