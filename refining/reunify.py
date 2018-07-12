@@ -156,9 +156,8 @@ def specify_type(type_term, ty_env: Env):
         return ty
 
     elif isinstance(type_term, TypeJoin):
-        left = specify_type(type_term.left, ty_env)
-        right = specify_type(type_term.right, ty_env)
-        return make_join(left, right)
+        components = map(lambda it: specify_type(it, ty_env), type_term.components)
+        return make_join(components)
 
     elif isinstance(type_term, TypeFunction):
         left = specify_type(type_term.left, ty_env)
@@ -227,8 +226,12 @@ def analyse(term_: Term, env_: Env):
         elif isinstance(term, (TypeDef, TypeInduct, TypeAbbr)):
             return specify_type(term, env)
 
+        elif isinstance(term, Tuple):
+            return make_join(map(apply_analyze, term.items))
+
         elif isinstance(term, Stmts):
             return reduce(make_statement, (apply_analyze(each) for each in term.terms))
+
 
         raise TypeError
 

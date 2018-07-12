@@ -27,7 +27,9 @@ class TypeOperator:
     def default_unify(left: 'TypeImpl', right: 'TypeImpl'):
         if not isinstance(right, TypeImpl):
             return False
-        return right.op == left.op and left.left.unify(right.left) and left.right.unify(right.right)
+
+        return right.op == left.op and len(left.components) == len(right.components) and all(
+                left_child.unify(right_child) for left_child, right_child in zip(left.components, right.components))
 
     def operator_unify(self, left: 'TypeImpl', right: 'TypeImpl') -> bool:
         if self.unify_method:
@@ -72,46 +74,65 @@ class TypeVar(abc.ABC):
 
 class TypeImpl(TypeVar):
     op: TypeOperator
-    left: 'TypeImpl'
-    right: 'TypeImpl'
+    components: typing.List['TypeVar']
 
-    def __init__(self, op: 'TypeOperator', left: 'TypeImpl', right: 'TypeImpl'):
+    def __init__(self, op: 'TypeOperator', components):
         self.op = op
-        self.left = left
-        self.right = right
+        self.components = components
 
     def iter_fields(self):
-        yield from self.left.iter_fields()
-        yield from self.right.iter_fields()
+        for each in self.components:
+            yield from each.iter_fields()
 
     def prune(self) -> typing.Tuple[bool, 'TypeVar']:
-        is_left_pruned, left = self.left.prune()
-        if is_left_pruned:
-            self.left = left
-        is_right_pruned, right = self.left.prune()
+        def stream():
+            components = self.components
+            for idx, elem in enumerate(components):
+                is_pruned, elem = elem.prune()
+                if is_pruned:
+                    components[idx] = elem
+                yield is_pruned
 
-        if is_right_pruned:
-            self.right = right
-        return is_left_pruned or is_right_pruned, self
+        return any(tuple(stream())), self
 
     def fresh_impl(self, fresh_args: TypeEnvFreshPair):
-        is_left_freshed, left = self.left.fresh(fresh_args)
-        is_right_freshed, right = self.right.fresh(fresh_args)
-        if is_left_freshed or is_right_freshed:
-            return True, TypeImpl(self.op, left, right)
+        is_freshed_booleans, components = zip(*map(TypeVar.fresh, self.components))
+
+        if any(is_freshed_booleans):
+            return True, TypeImpl(self.op, components)
         return False, self
 
     def occur_in(self, types):
-        return self.left.occur_in(types) or self.right.occur_in(types)
+        return any(elem.occur_in(types) for elem in self.components)
 
     def unify_impl(self, other: 'TypeImpl'):
         return self.op.operator_unify(self, other)
 
     def __repr__(self):
-        left = self.left
-        left_repr = ('({!r})'.format if isinstance(left, TypeImpl) else repr)(left)
-        return '{} {!r} {!r}'.format(left_repr, self.op, self.right)
+        # right = self.right
+        # right_str = ('({!r})'.format if isinstance(right, TypeImpl) else repr)(right)
+        return ' {!r} '.format(self.op).join(map(repr, self.components))
 
+
+"""
+
+(*
+    (* int int)
+    (* int int)
+    
+)
+-> (int * int) * (int * int)
+
+(*
+    (* int int)
+    int
+)  
+
+(int -> int) -> int -> int
+
+
+
+"""
 
 type_var_unique_id = 0
 
@@ -214,23 +235,23 @@ def make_basic(name: str):
 
 
 def make_function(left, right):
-    return TypeImpl(func_op, left, right)
+    return TypeImpl(func_op, [left, right])
 
 
-def make_join(left, right):
-    return TypeImpl(join_op, left, right)
+def make_join(components):
+    return TypeImpl(join_op, list(components))
 
 
 def make_union(left, right):
-    return TypeImpl(union_op, left, right)
+    return TypeImpl(union_op, [left, right])
 
 
 def make_induct(left, right):
-    return TypeImpl(induct_op, left, right)
+    return TypeImpl(induct_op, [left, right])
 
 
 def make_statement(left, right):
-    return TypeImpl(statement_op, left, right)
+    return TypeImpl(statement_op, [left, right])
 
 
 if __name__ == '__main__':

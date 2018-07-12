@@ -112,12 +112,10 @@ class TypeAbbr(Eq, TypeTerm, Hint):
 
 
 class TypeJoin(Eq, TypeTerm, Hint):
-    left: TypeTerm
-    right: TypeTerm
+    components: typing.Tuple['TypeTerm']
 
     def __repr__(self):
-        right_str = ('({!r})'.format if not isinstance(self.right, (TypeSym, TypeSlot)) else repr)(self.right)
-        return '{!r} * {}'.format(self.left, right_str)
+        return ' * '.join(map(repr, self.components))
 
 
 class TypeFunction(Eq, TypeTerm, Hint):

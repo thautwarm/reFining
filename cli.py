@@ -43,7 +43,6 @@ def main():
             tk = it.tokens[idx]
             raise SyntaxError("line {}, column {}".format(tk.lineno, tk.colno))
         res = it.result
-        print(res)
         if res is not None:
             print('=> ', analyse(res, env))
 
