@@ -25,15 +25,8 @@ Let ::=
     rewrite
         Let(tag.value, annotate, value, do)
 
-LetRec ::=
-    | 'let' 'rec' Name as tag [':' Type as annotate] '=' Expr as value 'in' Expr as do
-    rewrite
-        LetRec(tag.value, annotate, value, do)
-
-
 Expr ::= | Let as v
          | App as v
-         | TypeDef as v
          rewrite v
 
 App  ::= Atom+ as seq
@@ -49,7 +42,17 @@ Lam ::= 'fn' Sym as sym [':' Type as annotate] '->' Expr as ret
             Lam(sym, annotate, ret)
 
 
-Atom ::= | '(' Expr as v ')' [':' Type as ty]
+NestedExpr ::=
+        | '(' Expr as head (',' Expr)* as tail [',' as mark] ')'
+        | '(' ')'
+        rewrite
+            unit if not head else\
+            (Tuple((head, ))
+                if mark else head) if not tail else\
+            Tuple((head, *tail[1::2]))
+
+
+Atom ::= | NestedExpr as v [':' Type as ty]
          | Num as v  [':' Type as ty]
          | Sym as v  [':' Type as ty]
          | Str as v  [':' Type as ty]
@@ -78,6 +81,11 @@ TypeDef ::= 'type' Name as name ['of' Type as induct_arg] '=' Type as expand
                 TypeDef(TypeInduct(TypeSym(name.value), induct_arg), expand) \
                 if induct_arg else TypeAbbr(name.value, expand)
 
-Grammar  ::= (Expr [';'])+ as seq
+
+Stmt ::= | Expr    as v
+         | TypeDef as v
+         rewrite v
+
+Grammar  ::= (Stmt [';'])+ as seq
             rewrite
                 Stmts(tuple(e for e in seq if Eq in e.__class__.__mro__))

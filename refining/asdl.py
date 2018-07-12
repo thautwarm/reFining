@@ -1,6 +1,14 @@
 from .basic import *
 
 
+class Unit(Eq):
+    def __repr__(self):
+        return '()'
+
+
+unit = Unit()
+
+
 class Const(Eq, Hint):
     repr: typing.Any
 
@@ -35,6 +43,10 @@ class App(Eq, Hint):
 
 
 class Let(Eq, Hint):
+    """
+    for python is lazy in terms of function definitions,
+    `let rec` is forced to take place here.
+    """
     tag: str
     annotate: 'TypeTerm'
     value: 'Term'
@@ -47,17 +59,11 @@ class Let(Eq, Hint):
         return 'let {}{} = {!r} in {!r}'.format(self.tag, annotate_str, self.value, self.do)
 
 
-class LetRec(Eq, Hint):
-    tag: str
-    annotate: 'TypeTerm'
-    value: 'Term'
-    do: 'Term'
+class Tuple(Eq, Hint):
+    items: typing.Tuple['Term', ...]
 
     def __repr__(self):
-        annotate = self.annotate
-        annotate_str = ': {!r}'.format(annotate) if annotate else ''
-
-        return 'let rec {}{} = {!r} in {!r}'.format(self.tag, annotate_str, self.value, self.do)
+        return '({})'.join(map(repr, self.items))
 
 
 class TypeTerm:

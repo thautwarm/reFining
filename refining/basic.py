@@ -10,7 +10,9 @@ class Eq:
     n: int
 
     def __init__(self, *args):
-        annotations = self.__annotations__
+        annotations = getattr(self, '__annotations__', None)
+        if annotations is None:
+            return
         self.n = len(annotations)
         for k, v in zip(annotations, args):
             setattr(self, k, v)

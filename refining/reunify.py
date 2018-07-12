@@ -13,6 +13,7 @@ float_type = make_basic('float')
 str_type = make_basic('str')
 bool_type = make_basic('bool')
 any_type = make_basic('any')
+unit_type = make_basic('unit')
 
 type_map = {
     str: str_type, float: float_type, int: int_type, bool: bool_type
@@ -22,7 +23,9 @@ TypeEnv = FrozenDict[str, TypeVar]
 
 
 def make_default_env():
-    named_types = {'int': int_type, 'str': str_type, 'bool': bool_type, 'float': float_type, 'any': any_type}
+    named_types = {
+        'unit': unit_type, 'int': int_type, 'str': str_type, 'bool': bool_type, 'float': float_type, 'any': any_type
+    }
     return Env(named_types, {}, {})
 
 
@@ -95,7 +98,6 @@ class Env:
 def get_type_of_symbol(name: str, env: Env, fresh_args: TypeEnvFreshPair):
     result = env.get_symbol(name)
     if result is None:
-
         raise NameError(name)
     _, result = result.fresh(fresh_args)
     env.set_symbol(name, result)
@@ -172,7 +174,9 @@ def analyse(term_: Term, env_: Env):
         def apply_analyze(_t):
             return analyze_rec(_t, env)
 
-        if isinstance(term, Id):
+        if term is unit:
+            return unit_type
+        elif isinstance(term, Id):
             return get_type_of_symbol(term.repr_str, env, (typing.cast(set, env.undecided_types.values()), {}))
 
         elif isinstance(term, App):
