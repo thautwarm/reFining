@@ -57,7 +57,7 @@ class FrozenDict(typing.Mapping[K, V]):
         return self._.items()
 
     # noinspection PyMethodOverriding
-    def get(self, k: K, default: V):
+    def get(self, k: K, default: typing.Optional[V] = None):
         return self._.get(k, V)
 
     def copy(self):

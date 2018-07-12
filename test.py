@@ -5,10 +5,8 @@ import rbnf.ParserC
 ze_exp = ze.compile('import simple.[*]', use='Grammar')
 
 print(repr(ze_exp.match("""
-type List of 'a = 'a -> int;
-type S of 'a = 'a * 'b
-type S  = a * b * c
-""").result))
+fn x -> x
+""").tokens))
 
 # env = [('.i', Basic('int')), ('.s', Basic('str'))]
 #

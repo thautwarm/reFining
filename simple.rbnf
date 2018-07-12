@@ -3,14 +3,14 @@ pyimport refining.reunify.[*]
 ignore [Space]
 
 SingleQuote := R'\''
-keyword cast := 'let' 'in' 'type' 'fn' 'of'
+keyword cast := 'let' 'in' 'type' 'fn' 'of' 'rec'
 
-Sym ::= Name as n [':' Type as ty]
-        rewrite
-            r = Id(n.value)
-            if ty:
-                r = Annotate(r, ty)
-            r
+operator_have_to_pre_announce := '=>'
+
+
+Sym ::= Name as n
+        rewrite Id(n.value)
+
 
 Str ::= DoubleQuotedStr+ as seq
         rewrite
@@ -21,9 +21,15 @@ Num ::= Number as num
             Const(int(num.value))
 
 Let ::=
-    | 'let' Sym as sym '=' Expr as value 'in' Expr as do
+    | 'let' Name as tag [':' Type as annotate] '=' Expr as value 'in' Expr as do
     rewrite
-        Let(sym, value, do)
+        Let(tag.value, annotate, value, do)
+
+LetRec ::=
+    | 'let' 'rec' Name as tag [':' Type as annotate] '=' Expr as value 'in' Expr as do
+    rewrite
+        LetRec(tag.value, annotate, value, do)
+
 
 Expr ::= | Let as v
          | App as v
@@ -38,9 +44,10 @@ App  ::= Atom+ as seq
                     head = App(head, e)
             head
 
-Lam ::= 'fn' Sym as sym '->' Expr as ret
+Lam ::= 'fn' Sym as sym [':' Type as annotate] '->' Expr as ret
          rewrite
-            Lam(sym, ret)
+            Lam(sym, annotate, ret)
+
 
 Atom ::= | '(' Expr as v ')' [':' Type as ty]
          | Num as v  [':' Type as ty]
@@ -51,7 +58,7 @@ Atom ::= | '(' Expr as v ')' [':' Type as ty]
 
 
 Type    ::=
-            | Type as head '->' as fn Type as tail
+            | Type as head '=>' as fn Type as tail
             | Type as head '*'  as tp Type as tail
             | '(' Type as nested ')'
             | Name as name ['of' Type as args]
@@ -61,14 +68,14 @@ Type    ::=
                 TypeFunction(head, tail) if fn else\
                 TypeJoin(head, tail) if tp else\
                 nested if nested else\
-                TypeInduct(name.value, args) if args else\
+                TypeInduct(TypeSym(name.value), args) if args else\
                 TypeSym(name.value) if name else\
                 TypeSlot(undecided.value)
 
 
 TypeDef ::= 'type' Name as name ['of' Type as induct_arg] '=' Type as expand
             rewrite
-                TypeDef(TypeInduct(name.value, induct_arg), expand) \
+                TypeDef(TypeInduct(TypeSym(name.value), induct_arg), expand) \
                 if induct_arg else TypeAbbr(name.value, expand)
 
 Grammar  ::= (Expr [';'])+ as seq

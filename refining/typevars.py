@@ -2,6 +2,11 @@ import typing
 import abc
 
 _not_initialized = object()
+NonGenericTypeVars = typing.Set['Undecided']
+
+GenericTypeVarMap = typing.Dict['Undecided', 'Undecided']
+
+TypeEnvFreshPair = typing.Tuple[NonGenericTypeVars, GenericTypeVarMap]
 
 
 class TypeOperator:
@@ -50,7 +55,7 @@ class TypeVar(abc.ABC):
         raise NotImplemented
 
     @abc.abstractmethod
-    def fresh_impl(self, non_generic_var_mapping: typing.Dict['Undecided', typing.Optional['Undecided']]):
+    def fresh_impl(self, fresh_args: TypeEnvFreshPair):
         raise NotImplemented
 
     def unify(self, other: 'TypeVar'):
@@ -60,10 +65,9 @@ class TypeVar(abc.ABC):
             left, right = right, left
         return left.unify_impl(right)
 
-    def fresh(self, non_generic_var_mapping: typing.Dict['Undecided', typing.Optional['Undecided']]) -> typing.Tuple[
-        bool, 'TypeVar.t']:
+    def fresh(self, fresh_args: TypeEnvFreshPair) -> typing.Tuple[bool, 'TypeVar.t']:
         _, pruned_ty = self.prune()
-        return pruned_ty.fresh_impl(non_generic_var_mapping)
+        return pruned_ty.fresh_impl(fresh_args)
 
 
 class TypeImpl(TypeVar):
@@ -90,9 +94,9 @@ class TypeImpl(TypeVar):
             self.right = right
         return is_left_pruned or is_right_pruned, self
 
-    def fresh_impl(self, non_generic_var_mapping: typing.Dict['Undecided', typing.Optional['Undecided']]):
-        is_left_freshed, left = self.left.fresh(non_generic_var_mapping)
-        is_right_freshed, right = self.right.fresh(non_generic_var_mapping)
+    def fresh_impl(self, fresh_args: TypeEnvFreshPair):
+        is_left_freshed, left = self.left.fresh(fresh_args)
+        is_right_freshed, right = self.right.fresh(fresh_args)
         if is_left_freshed or is_right_freshed:
             return True, TypeImpl(self.op, left, right)
         return False, self
@@ -131,7 +135,7 @@ class Basic(TypeVar):
     def occur_in(self, types: typing.Iterable['TypeVar']) -> bool:
         return False
 
-    def fresh_impl(self, non_generic_var_mapping: typing.Dict['Undecided', typing.Optional['Undecided']]):
+    def fresh_impl(self, fresh_args: TypeEnvFreshPair):
         return False, self
 
     def unify_impl(self, other: 'TypeVar'):
@@ -148,7 +152,7 @@ class Undecided(TypeVar):
     ref: typing.Optional[TypeVar]
     _unique_id: int
 
-    def __init__(self, ref):
+    def __init__(self, ref=None):
         global type_var_unique_id
         self.ref = ref
         self._unique_id = type_var_unique_id
@@ -158,7 +162,7 @@ class Undecided(TypeVar):
         ref = self.ref
         if ref is None:
             return False, self
-        self.ref = ref.prune()
+        _, self.ref = ref.prune()
         return True, ref
 
     def iter_fields(self):
@@ -183,20 +187,26 @@ class Undecided(TypeVar):
         # else self is other
         return True
 
-    def fresh_impl(self, non_generic_var_mapping: typing.Dict['Undecided', typing.Optional['Undecided']]):
-        if not self.occur_in(non_generic_var_mapping):
-            looked = non_generic_var_mapping.get(self)
+    def fresh_impl(self, fresh_args: TypeEnvFreshPair):
+        non_generic_set, generic_dict = fresh_args
+        if not self.occur_in(non_generic_set):
+            looked = generic_dict.get(self)
             if looked is None:
-                freshed_var = non_generic_var_mapping[self] = Undecided(None)
+                freshed_var = generic_dict[self] = Undecided(None)
                 return True, freshed_var
             return True, looked
         return False, self
 
+    def __repr__(self):
+        ref = self.ref
+        return '#.{}'.format(self._unique_id) if not ref else repr(ref)
 
-func_op = TypeOperator('->')
+
+func_op = TypeOperator('=>')
 join_op = TypeOperator('*')
 induct_op = TypeOperator('of')
 union_op = TypeOperator('|')
+statement_op = TypeOperator(';')
 
 
 def make_basic(name: str):
@@ -217,6 +227,10 @@ def make_union(left, right):
 
 def make_induct(left, right):
     return TypeImpl(induct_op, left, right)
+
+
+def make_statement(left, right):
+    return TypeImpl(statement_op, left, right)
 
 
 if __name__ == '__main__':

@@ -1,9 +1,9 @@
-from refining.unification import *
+from refining.reunify import *
 import rbnf.zero as ze
 import readline, io, sys
 
 KeyWords = ['let', 'in', 'type', 'fn']
-env = [('.i', Basic('int')), ('.s', Basic('str'))]
+env = make_default_env()
 ze_exp = ze.compile('import simple.[*]', use='Grammar')
 
 
@@ -32,28 +32,23 @@ def main():
     readline.parse_and_bind("tab: complete")
     readline.set_completer(completer)
 
-    count_parentheses = 0
     cache = []
 
     def active():
-        nonlocal count_parentheses
-        try:
-            it = ze_exp.match(' '.join(cache))
-            if it is None:
-                raise Exception
-            if it.state.end_index != len(it.tokens):
-                idx = min(it.state.max_fetched, len(it.tokens) - 1)
-                tk = it.tokens[idx]
-                raise SyntaxError("line {}, column {}".format(tk.lineno, tk.colno))
-            res = it.result
-            if res is not None:
-                print('=> ', analyse(res, env).types[-1])
-        except Exception as e:
-            sys.exc_info()
+        it = ze_exp.match(' '.join(cache))
+        if it is None:
+            raise Exception
+        if it.state.end_index != len(it.tokens):
+            idx = min(it.state.max_fetched, len(it.tokens) - 1)
+            tk = it.tokens[idx]
+            raise SyntaxError("line {}, column {}".format(tk.lineno, tk.colno))
+        res = it.result
+        if res is not None:
+            print('=> ', analyse(res, env))
+
         # err_write(e.__class__.__name__ + ':' + str(e) + '\n')
 
         cache.clear()
-        count_parentheses = 0
 
     while True:
         line: str = input('reF> ' if not cache else '      ')

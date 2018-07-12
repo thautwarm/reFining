@@ -17,10 +17,13 @@ class Id(Eq, Hint):
 
 class Lam(Eq, Hint):
     arg: 'Id'
+    annotate: 'TypeTerm'
     ret: 'Term'
 
     def __repr__(self):
-        return 'λ{}.{}'.format(self.arg, self.ret)
+        if not self.annotate:
+            return 'λ{!r}.{!r}'.format(self.arg, self.ret)
+        return 'λ{!r}: {!r}.{!r}'.format(self.arg, self.annotate, self.ret)
 
 
 class App(Eq, Hint):
@@ -32,17 +35,35 @@ class App(Eq, Hint):
 
 
 class Let(Eq, Hint):
-    tag: 'Id'
+    tag: str
+    annotate: 'TypeTerm'
     value: 'Term'
     do: 'Term'
 
     def __repr__(self):
-        return 'let {} = {} in {}'.format(self.tag, self.value, self.do)
+        annotate = self.annotate
+        annotate_str = ': {!r}'.format(annotate) if annotate else ''
+
+        return 'let {}{} = {!r} in {!r}'.format(self.tag, annotate_str, self.value, self.do)
+
+
+class LetRec(Eq, Hint):
+    tag: str
+    annotate: 'TypeTerm'
+    value: 'Term'
+    do: 'Term'
+
+    def __repr__(self):
+        annotate = self.annotate
+        annotate_str = ': {!r}'.format(annotate) if annotate else ''
+
+        return 'let rec {}{} = {!r} in {!r}'.format(self.tag, annotate_str, self.value, self.do)
 
 
 class TypeTerm:
     def __str__(self):
         return repr(self)
+
     pass
 
 
@@ -61,11 +82,11 @@ class TypeSlot(Eq, TypeTerm, Hint):
 
 
 class TypeInduct(Eq, TypeTerm, Hint):
-    name: str
+    sym: TypeSym
     ty: TypeTerm
 
     def __repr__(self):
-        return '{} of {!r}'.format(self.name, self.ty)
+        return '{!r} of {!r}'.format(self.sym, self.ty)
 
 
 class TypeDef(Eq, TypeTerm, Hint):
@@ -75,6 +96,7 @@ class TypeDef(Eq, TypeTerm, Hint):
     def __repr__(self):
         return 'type {} = {!r}'.format(self.induct, self.impl)
 
+
 class TypeAbbr(Eq, TypeTerm, Hint):
     name: str
     impl: TypeTerm
@@ -82,12 +104,12 @@ class TypeAbbr(Eq, TypeTerm, Hint):
     def __repr__(self):
         return 'type {} = {!r}'.format(self.name, self.impl)
 
+
 class TypeJoin(Eq, TypeTerm, Hint):
     left: TypeTerm
     right: TypeTerm
 
     def __repr__(self):
-
         right_str = ('({!r})'.format if not isinstance(self.right, (TypeSym, TypeSlot)) else repr)(self.right)
         return '{!r} * {}'.format(self.left, right_str)
 

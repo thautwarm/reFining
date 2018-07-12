@@ -1,144 +1,231 @@
-from .typevars import make_join, make_function, make_induct, TypeVar, Undecided, Basic, TypeImpl
+from .typevars import (make_join, make_function, make_induct, make_basic, TypeVar, Undecided, Basic, TypeImpl,
+                       TypeEnvFreshPair, make_statement)
 from .asdl import *
+from functools import reduce
+from Redy.Opt import constexpr, const, feature
+from .utils import FrozenDict
 import typing
 
+staging = (const, constexpr)
 
-class Symbol:
-    name: str
-    ty: TypeVar
-    value: object
+int_type = make_basic('int')
+float_type = make_basic('float')
+str_type = make_basic('str')
+bool_type = make_basic('bool')
+any_type = make_basic('any')
+
+type_map = {
+    str: str_type, float: float_type, int: int_type, bool: bool_type
+}
+
+TypeEnv = FrozenDict[str, TypeVar]
 
 
-SymEnv = typing.List[typing.Tuple[Symbol, TypeVar]]
-TypeEnv = typing.List[typing.Tuple[str, TypeVar]]
+def make_default_env():
+    named_types = {'int': int_type, 'str': str_type, 'bool': bool_type, 'float': float_type, 'any': any_type}
+    return Env(named_types, {}, {})
 
 
-def get_type_of_symbol(name: str, env: SymEnv, non_generic_types: typing.Dict[Undecided, Undecided]):
-    result = next((v for k, v in env if name == k), None)
+class Env:
+    inductive_type_impl: typing.Dict[Basic, typing.Tuple[TypeImpl, TypeImpl]] = {}
+    named_types: typing.Dict[str, TypeVar]
+    undecided_types: typing.Dict[str, Undecided]
+    symbols: typing.Dict[str, TypeVar]
+
+    def __init__(self, named_types: typing.Dict[str, TypeVar], undecided_types: typing.Dict[str, Undecided],
+                 symbols: typing.Dict[str, TypeVar]):
+        self.named_types = named_types
+        self.undecided_types = undecided_types
+        self.symbols = symbols
+
+        # TODO: copy on write
+        def _get_named_type(name):
+            return self.named_types.get(name)
+
+        self.get_named_type = _get_named_type
+
+        def _set_named_type(name, value: TypeVar):
+            self.named_types[name] = value
+
+        self.set_named_type = _set_named_type
+
+        def _get_undecided_type(name):
+            return self.undecided_types.get(name)
+
+        self.get_undecided_type = _get_undecided_type
+
+        def _set_undecided_type(name, value: TypeVar):
+            self.undecided_types[name] = value
+
+        self.set_undecided_type = _set_undecided_type
+
+        def _get_symbol(name):
+            return self.symbols.get(name)
+
+        self.get_symbol = _get_symbol
+
+        def _set_symbol(name, value: TypeVar):
+            self.symbols[name] = value
+
+        self.set_symbol = _set_symbol
+
+    def get_named_type(self, name: str) -> typing.Optional[TypeVar]:
+        ...
+
+    def set_named_type(self, name: str, value: TypeVar):
+        ...
+
+    def get_symbol(self, name: str) -> typing.Optional[TypeVar]:
+        ...
+
+    def set_symbol(self, name: str, value: TypeVar):
+        ...
+
+    def get_undecided_type(self, name: str) -> typing.Optional[Undecided]:
+        ...
+
+    def set_undecided_type(self, name: str, value: TypeVar):
+        ...
+
+    def create_sub(self):
+        # TODO: copy on write
+        return Env(self.named_types.copy(), self.undecided_types.copy(), self.symbols.copy())
+
+
+def get_type_of_symbol(name: str, env: Env, fresh_args: TypeEnvFreshPair):
+    result = env.get_symbol(name)
     if result is None:
+
         raise NameError(name)
-    _, result = result.fresh(non_generic_types)
+    _, result = result.fresh(fresh_args)
+    env.set_symbol(name, result)
     return result
 
 
-def specify_type(type_term, ty_env: TypeEnv, non_generic_types: typing.Dict[str, Undecided]):
+def specify_type(type_term, ty_env: Env):
+    def _type_def_helper(inductive_ty: TypeInduct, env: Env) -> typing.Tuple[Basic, TypeImpl]:
+        """
+        only typedef can define new basic type
+        type S of 'a 'b = 'a * 'b, where
+            S is a basic type(but there is no constructor for S, for S is actually a functor.
+            S of 'a 'b can be expand to 'a * 'b
+
+        there could be recursive types(guided ones are also allowed):
+        type S of 'a * 'b =
+            | S1 'a * 'b)
+            | S2 'a * ('a * 'b)
+            | S3 (S of bool * bool) * 'a * 'b
+
+        """
+        name = inductive_ty.sym.name
+        new_basic = make_basic(name)
+        env.set_named_type(name, new_basic)
+        _ty_args = specify_type(inductive_ty.ty, env)
+        return new_basic, _ty_args
+
     if isinstance(type_term, TypeSym):
-        return next((ty for name, ty in ty_env if name == type_term.name), None)
+        var = ty_env.get_named_type(type_term.name)
+        if var is None:
+            raise NameError(type_term)
+        return var
+
     elif isinstance(type_term, TypeSlot):
+        var = ty_env.get_undecided_type(type_term.name)
+        if var is None:
+            var = Undecided()
+            ty_env.set_undecided_type(type_term.name, var)
+        return var
+    elif isinstance(type_term, TypeInduct):
+        named_ty = specify_type(type_term.sym, ty_env)
+        ty_args = specify_type(type_term.ty, ty_env)
+        return make_induct(named_ty, ty_args)
+    elif isinstance(type_term, TypeDef):
+        new_env = ty_env.create_sub()
+        named_ty, ty_args = _type_def_helper(type_term.induct, new_env)
+        impl = specify_type(type_term.impl, new_env)
+        Env.inductive_type_impl[named_ty] = (ty_args, impl)
+        ty_env.set_named_type(named_ty.name, named_ty)
+        return make_induct(named_ty, ty_args)
+
+    # TODO: remove from specify_type
+    elif isinstance(type_term, TypeAbbr):
+        ty = specify_type(type_term.impl, ty_env)
+        ty_env.set_named_type(type_term.name, ty)
+        return ty
+
+    elif isinstance(type_term, TypeJoin):
+        left = specify_type(type_term.left, ty_env)
+        right = specify_type(type_term.right, ty_env)
+        return make_join(left, right)
+
+    elif isinstance(type_term, TypeFunction):
+        left = specify_type(type_term.left, ty_env)
+        new_env = ty_env.create_sub()
+        right = specify_type(type_term.right, new_env)
+        return make_function(left, right)
+    else:
+        raise TypeError
 
 
-#
-#
-# def specify_type(type_terms, ty_env: TypeEnv):
-#     if isinstance(ty, TVar):
-#         specify_type(ty.ty, env)
-#         name = ty.name
-#         looked = next((v for _, v in env if v.name == name), None)
-#
-#         if looked is None:
-#             if ty.ty is None:
-#                 env.append((name, ty))
-#                 return ty
-#
-#             raise NameError(name)
-#         else:
-#             ty.ty = looked
-#
-#     elif isinstance(ty, TFnSig):
-#         specify_type(ty.left, env)
-#         specify_type(ty.right, env)
-#     elif isinstance(ty, Basic):
-#         return ty
-#
-#
-# def analyse(term_: Term, env_: SymEnv):
-#     def analyserec(term: Term, env: SymEnv, non_generic_types: typing.Set[Type]):
-#         def analyse_it(_t):
-#             return analyserec(_t, env, non_generic_types)
-#
-#         if isinstance(term, Id):
-#             return get_type_of_symbol(term.repr_str, env, non_generic_types)
-#
-#         elif isinstance(term, App):
-#             fun_ty, arg_ty = map(analyse_it, term)
-#             ret_ty = TVar.new()
-#             unify(TFnSig.new(arg_ty, ret_ty), fun_ty)
-#             return ret_ty
-#         elif isinstance(term, Lam):
-#             arg, body = term.arg, term.ret
-#             arg_ty = TVar.new()
-#             new_env = env.copy()
-#             new_env.append((arg.repr_str, arg_ty))
-#             new_free_types = non_generic_types.copy()
-#             new_free_types.add(arg_ty)
-#
-#             ret_ty = analyserec(body, new_env, new_free_types)
-#             return TFnSig.new(arg_ty, ret_ty)
-#
-#         elif isinstance(term, Let):
-#             tag, value, body = term.tag, term.value, term.do
-#
-#             new_ty = TVar.new()
-#             if isinstance(tag, Annotate):
-#                 manual_ty = tag.ty
-#                 specify_type(manual_ty, env)
-#                 tag = tag.term
-#                 unify(new_ty, manual_ty)
-#
-#             new_env = env.copy()
-#             new_env.append((tag.repr_str, new_ty))
-#             new_free_types = non_generic_types.copy()
-#             non_generic_types.add(new_ty)
-#             value_ty = analyserec(value, new_env, new_free_types)
-#             unify(new_ty, value_ty)
-#             return analyserec(body, new_env, non_generic_types)
-#         elif isinstance(term, Const):
-#             return Basic(type(term.repr).__name__)
-#
-#         elif isinstance(term, Annotate):
-#             ty = term.ty
-#             t = analyse_it(term.term)
-#             specify_type(term.ty, env)
-#
-#             unify(t, ty)
-#             return t
-#
-#
-#         elif isinstance(term, Alias):
-#             specify_type(term.typ, env)
-#             name = term.name
-#             if any(_ for _, v in env if name == v.name):
-#                 raise NameError("duplicated type {}.".format(name))
-#
-#             # if support overwrite, we can implement a nested type env with
-#             #  correct inheritances.
-#             n_ty = TVar.new(None, term.typ, name)
-#             env.append(('.{}'.format(name), n_ty))
-#             return n_ty
-#
-#         elif isinstance(term, Stmts):
-#             return Flow(tuple(analyse_it(each) for each in term.terms))
-#
-#         raise TypeError
-#
-#     return analyserec(term_, env_, set())
+def analyse(term_: Term, env_: Env):
+    def analyze_rec(term: Term, env: Env):
+        def apply_analyze(_t):
+            return analyze_rec(_t, env)
 
-# class TypeEnv:  #     """
-#
-#
-#     """
-#
-#     def __init__(self, _: typing.List[typing.Tuple[str, Type]], parent: typing.Optional['TypeEnv']):
-#         self._ = _
-#         self.parent = parent
-#
-#     def get(self, name: str, default: Type):
-#         for k, v in self._:
-#             if k == name:
-#                 return v
-#         if self.parent:
-#             return self.parent.get(name, default)
-#         if default:
-#             return default
-#
-#         raise NameError(name)
+        if isinstance(term, Id):
+            return get_type_of_symbol(term.repr_str, env, (typing.cast(set, env.undecided_types.values()), {}))
+
+        elif isinstance(term, App):
+            fun_ty, arg_ty = apply_analyze(term.fn), apply_analyze(term.arg)
+            ret_ty = Undecided()
+            is_unified = make_function(arg_ty, ret_ty).unify(fun_ty)
+            if not is_unified:
+                raise TypeError
+
+            return ret_ty
+
+        elif isinstance(term, Annotate):
+            origin_ty = apply_analyze(term.term)
+            manual_ty = specify_type(term.type, env)
+            is_unified = origin_ty.unify(manual_ty)
+
+            if not is_unified:
+                raise TypeError
+
+            return origin_ty
+        elif isinstance(term, Lam):
+            arg, annotate, body = term.arg, term.annotate, term.ret
+            arg_ty = Undecided(specify_type(annotate, env)) if annotate else Undecided()
+            new_env = env.create_sub()
+            new_env.set_symbol(arg.repr_str, arg_ty)
+            new_env.set_undecided_type(repr(arg_ty), arg_ty)
+            ret_ty = analyze_rec(body, new_env)
+            return make_function(arg_ty, ret_ty)
+
+        elif isinstance(term, Let):
+            tag, annotate, value, body = term.tag, term.annotate, term.value, term.do
+            new_ty = Undecided(specify_type(annotate, env)) if annotate else Undecided()
+            new_env = env.create_sub()
+            new_env.set_undecided_type(repr(new_ty), new_ty)
+            new_env.set_symbol(tag, new_ty)
+
+            value_ty = analyze_rec(value, new_env)
+            is_unified = new_ty.unify(value_ty)
+
+            if not is_unified:
+                raise TypeError
+
+            return analyze_rec(body, new_env)
+
+        elif isinstance(term, Const):
+            return type_map.get(type(term.repr), any_type)
+
+        elif isinstance(term, (TypeDef, TypeInduct, TypeAbbr)):
+            return specify_type(term, env)
+
+        elif isinstance(term, Stmts):
+            return reduce(make_statement, (apply_analyze(each) for each in term.terms))
+
+        raise TypeError
+
+    return analyze_rec(term_, env_)
