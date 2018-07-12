@@ -19,6 +19,14 @@ def get_type_of_symbol(name: str, env: SymEnv, non_generic_types: typing.Dict[Un
         raise NameError(name)
     _, result = result.fresh(non_generic_types)
     return result
+
+
+def specify_type(type_term, ty_env: TypeEnv, non_generic_types: typing.Dict[str, Undecided]):
+    if isinstance(type_term, TypeSym):
+        return next((ty for name, ty in ty_env if name == type_term.name), None)
+    elif isinstance(type_term, TypeSlot):
+
+
 #
 #
 # def specify_type(type_terms, ty_env: TypeEnv):
