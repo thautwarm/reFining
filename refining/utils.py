@@ -1,7 +1,5 @@
 import typing
-import sys
 import functools
-from collections import OrderedDict
 
 K = typing.TypeVar('K')
 V = typing.TypeVar('V')

@@ -1,5 +1,4 @@
 from refining import setting
-
 setting.debug = False
 from refining.reunify import *
 import rbnf.zero as ze

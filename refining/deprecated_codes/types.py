@@ -1,4 +1,4 @@
-from .asdl import *
+from refining.asdl import *
 
 _next_unique_id = 0
 _next_unique_name = '#.1'
