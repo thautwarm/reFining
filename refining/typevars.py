@@ -63,7 +63,6 @@ class TypeVar(abc.ABC):
     def unify(self, other: 'TypeVar'):
         _, left = self.prune()
         _, right = other.prune()
-
         if isinstance(right, Undecided):
             left, right = right, left
         return left.unify_impl(right)
@@ -71,6 +70,10 @@ class TypeVar(abc.ABC):
     def fresh(self, fresh_args: TypeEnvFreshPair) -> typing.Tuple[bool, 'TypeVar.t']:
         _, pruned_ty = self.prune()
         return pruned_ty.fresh_impl(fresh_args)
+
+    @property
+    def pruned(self):
+        return self.prune()[1]
 
 
 class TypeImpl(TypeVar):
@@ -112,7 +115,7 @@ class TypeImpl(TypeVar):
     def __repr__(self):
         # right = self.right
         # right_str = ('({!r})'.format if isinstance(right, TypeImpl) else repr)(right)
-        return ' {!r} '.format(self.op).join(map(repr, self.components))
+        return "({})".format(' {!r} '.format(self.op).join(map(repr, self.components)))
 
 
 """
@@ -149,7 +152,7 @@ class Basic(TypeVar):
         type_name_unique_id += 1
 
     def prune(self):
-        return False, self
+        return True, self
 
     def iter_fields(self):
         yield self
@@ -203,7 +206,7 @@ class Undecided(TypeVar):
             self.ref = other
         elif self is not other:
             if self.occur_in([other]):
-                return False  # raise TypeError("recursive type.")
+                raise TypeError("recursive type.")
             self.ref = other
 
         # else self is other

@@ -1,3 +1,6 @@
+from refining import setting
+
+setting.debug = False
 from refining.reunify import *
 import rbnf.zero as ze
 import readline, io, sys
@@ -28,7 +31,6 @@ def completer(text, state):
 
 
 def main():
-    ctx = dict(__name__=__name__, __file__=__file__)
     readline.parse_and_bind("tab: complete")
     readline.set_completer(completer)
 
@@ -44,7 +46,7 @@ def main():
             raise SyntaxError("line {}, column {}".format(tk.lineno, tk.colno))
         res = it.result
         if res is not None:
-            print('=> ', analyse(res, env))
+            print('=> ', analyze(res, env))
 
         # err_write(e.__class__.__name__ + ':' + str(e) + '\n')
 
@@ -60,7 +62,7 @@ def main():
                 if var.startswith('\''):
                     print(env.get_undecided_type(var[1:]))
                 else:
-                    print(env.get_undecided_type())
+                    print(env.get_named_type(var))
             elif cmd == 'env':
                 if var.startswith('symbol'):
                     print(env.symbols)
@@ -71,7 +73,6 @@ def main():
                 else:
                     raise ValueError("invalid command")
             continue
-
 
         if line.endswith(';;'):
             line = line[:-2]

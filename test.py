@@ -4,11 +4,10 @@ import rbnf.ParserC
 env = make_default_env()
 ze_exp = ze.compile('import simple.[*]', use='Grammar')
 
-print(repr(
-    analyse(ze_exp.match("""
-let s : 'a = fn x -> x in
+print(repr(analyze(ze_exp.match("""
+let s = fn x: 'a -> x in
       let d = s "1" in
-      let k = fn x : 'a -> x in k;;
+      let k = fn x: 'a -> x in k;;
 """).result, env)))
 
 # env = [('.i', Basic('int')), ('.s', Basic('str'))]
