@@ -18,6 +18,9 @@ if debug:
             return result
 
         return apply
+
+
+    print('open logging')
 else:
     def log(_):
         return _
@@ -178,6 +181,7 @@ def specify_type(type_term, ty_env: Env):
         return ty
 
     elif isinstance(type_term, TypeJoin):
+        print(list(type_term.components))
         components = map(lambda it: specify_type(it, ty_env), type_term.components)
         return make_join(components)
 

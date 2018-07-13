@@ -63,7 +63,7 @@ class Tuple(Eq, Hint):
     items: typing.Tuple['Term', ...]
 
     def __repr__(self):
-        return '({})'.join(map(repr, self.items))
+        return '({})'.format(', '.join(map(repr, self.items)))
 
 
 class TypeTerm:

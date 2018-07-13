@@ -60,20 +60,34 @@ Atom ::= | NestedExpr as v [':' Type as ty]
          rewrite Annotate(v, ty) if ty else v
 
 
-Type    ::=
-            | Type as head '=>' as fn Type as tail
-            | Type as head '*'  as tp Type as tail
-            | '(' Type as nested ')'
-            | Name as name ['of' Type as args]
-            | SingleQuote Name as undecided
+Type    ::= | ComposedType as composed
+            | '(' Type     as nested ')'
             rewrite
-
-                TypeFunction(head, tail) if fn else\
-                TypeJoin(head, tail) if tp else\
-                nested if nested else\
+                composed if composed else\
+                nested   if nested   else\
                 TypeInduct(TypeSym(name.value), args) if args else\
                 TypeSym(name.value) if name else\
                 TypeSlot(undecided.value)
+
+ComposedType
+        ::= | FunctionType as head ('*' FunctionType)* as tail
+            rewrite
+                TypeJoin((head, *tail[1::2])) if tail else head
+
+FunctionType
+        ::= AtomType as arg ['=>' AtomType as ret]
+        rewrite
+            TypeFunction(arg, ret) if ret else arg
+
+AtomType
+        ::= | '(' Type     as nested ')'
+            | Name as name ['of' Type as args]
+            | SingleQuote Name as undecided
+            rewrite
+                TypeInduct(TypeSym(name.value), args) if args else\
+                TypeSym(name.value) if name else\
+                TypeSlot(undecided.value)
+
 
 
 TypeDef ::= 'type' Name as name ['of' Type as induct_arg] '=' Type as expand

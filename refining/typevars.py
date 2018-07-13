@@ -118,26 +118,6 @@ class TypeImpl(TypeVar):
         return "({})".format(' {!r} '.format(self.op).join(map(repr, self.components)))
 
 
-"""
-
-(*
-    (* int int)
-    (* int int)
-    
-)
--> (int * int) * (int * int)
-
-(*
-    (* int int)
-    int
-)  
-
-(int -> int) -> int -> int
-
-
-
-"""
-
 type_var_unique_id = 0
 
 
