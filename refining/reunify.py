@@ -245,6 +245,19 @@ def analyze(term: Term, env: Env):
         ret_ty = analyze(body, new_env)
         return make_function(arg_ty, ret_ty)
 
+    elif isinstance(term, If):
+        test, body, else_do = term.test, term.body, term.else_do
+        test_ty = analyze(test, env)
+        test_ty.unify(bool_type)
+        true_env = env.create_sub()
+        body_ty = analyze(body, true_env)
+
+        false_env = env.create_sub()
+        else_do_ty = analyze(else_do, false_env)
+
+        body_ty.unify(else_do_ty)
+        return body_ty
+
     elif isinstance(term, Let):
         tag, annotate, value, body = term.tag, term.annotate, term.value, term.do
         new_ty = Undecided(specify_type(annotate, env)).pruned if annotate else Undecided()

@@ -59,6 +59,15 @@ class Let(Eq, Hint):
         return 'let {}{} = {!r} in {!r}'.format(self.tag, annotate_str, self.value, self.do)
 
 
+class If(Eq, Hint):
+    test: 'Term'
+    body: 'Term'
+    else_do: 'Term'
+
+    def __repr__(self):
+        return 'if {!r} then {!r} else {!r}'.format(self.test, self.body, self.else_do)
+
+
 class Tuple(Eq, Hint):
     items: typing.Tuple['Term', ...]
 

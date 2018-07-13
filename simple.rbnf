@@ -20,10 +20,17 @@ Num ::= Number as num
         rewrite
             Const(int(num.value))
 
+
 Let ::=
     | 'let' Name as tag [':' Type as annotate] '=' Expr as value 'in' Expr as do
     rewrite
         Let(tag.value, annotate, value, do)
+
+If  ::=
+    'if' Expr as test 'then' Expr as body
+    'else' Expr as else_do
+    rewrite
+        If(test, body, else_do)
 
 Expr ::= | Let as v
          | App as v
