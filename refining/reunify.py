@@ -20,7 +20,7 @@ if debug:
         return apply
 
 
-    print('open logging')
+    print('open debugging')
 else:
     def log(_):
         return _
@@ -142,6 +142,19 @@ def specify_type(type_term, ty_env: Env):
             | S2 'a * ('a * 'b)
             | S3 (S of bool * bool) * 'a * 'b
 
+        type List of 'a =
+            | Nil
+            | Cons 'a * List of 'a
+
+        let x  = fn x -> x + 1 with y -> y - 1 in
+        match 1 with
+        | x(a) -> a # a should be 0
+        # type of x : int <=> int
+        =>
+            compiling time behaviours:
+                1. make a invertible function `() <=> List of 'a`,
+                2. make a invertible function `'(a * List of 'a) <=> List of 'a
+
         """
 
         name = inductive_ty.sym.name
@@ -181,7 +194,6 @@ def specify_type(type_term, ty_env: Env):
         return ty
 
     elif isinstance(type_term, TypeJoin):
-        print(list(type_term.components))
         components = map(lambda it: specify_type(it, ty_env), type_term.components)
         return make_join(components)
 

@@ -103,7 +103,7 @@ class TypeImpl(TypeVar):
         is_freshed_booleans, components = zip(*map(lambda _: TypeVar.fresh(_, fresh_args), self.components))
 
         if any(is_freshed_booleans):
-            return True, TypeImpl(self.op, components)
+            return True, TypeImpl(self.op, list(components))
         return False, self
 
     def occur_in(self, types):
@@ -208,6 +208,7 @@ class Undecided(TypeVar):
 
 
 func_op = TypeOperator('=>')
+invertible_func_op = TypeOperator('<=>')
 join_op = TypeOperator('*')
 induct_op = TypeOperator('of')
 union_op = TypeOperator('|')
@@ -220,6 +221,10 @@ def make_basic(name: str):
 
 def make_function(left, right):
     return TypeImpl(func_op, [left, right])
+
+
+def make_invertible_function(left, right):
+    return TypeImpl(invertible_func_op, [left, right])
 
 
 def make_join(components):
@@ -245,3 +250,12 @@ if __name__ == '__main__':
     tp1 = make_join(i32, a)
 
     print(a.occur_in([tp1]))
+
+"""
+
+type S = 
+    | A a 
+    | B b 
+
+
+"""

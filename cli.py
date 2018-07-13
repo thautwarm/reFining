@@ -1,4 +1,5 @@
 from refining import setting
+
 setting.debug = False
 from refining.reunify import *
 import rbnf.zero as ze
@@ -32,7 +33,8 @@ def completer(text, state):
 def main():
     readline.parse_and_bind("tab: complete")
     readline.set_completer(completer)
-
+    print(' type :env <symbol/slot/type> to show different type areas respectively.')
+    print(' type :show <typename> to show type of type variable. eg. :show \'a ; show int')
     cache = []
 
     def active():
@@ -54,6 +56,8 @@ def main():
     while True:
         line: str = input('reF> ' if not cache else '      ')
         if line.startswith(':'):
+            if line.endswith(';;'):
+                line = line[:-2]
             line = line[1:]
             cmd, var = map(str.strip, line.split(' '))
 
