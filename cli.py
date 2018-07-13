@@ -52,6 +52,26 @@ def main():
 
     while True:
         line: str = input('reF> ' if not cache else '      ')
+        if line.startswith(':'):
+            line = line[1:]
+            cmd, var = map(str.strip, line.split(' '))
+
+            if cmd == 'show':
+                if var.startswith('\''):
+                    print(env.get_undecided_type(var[1:]))
+                else:
+                    print(env.get_undecided_type())
+            elif cmd == 'env':
+                if var.startswith('symbol'):
+                    print(env.symbols)
+                elif var.startswith('slot'):
+                    print(env.undecided_types)
+                elif var.startswith('type'):
+                    print(env.named_types)
+                else:
+                    raise ValueError("invalid command")
+            continue
+
 
         if line.endswith(';;'):
             line = line[:-2]

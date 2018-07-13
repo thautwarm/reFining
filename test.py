@@ -1,12 +1,15 @@
-from refining.unification import *
+from refining.reunify import *
 import rbnf.zero as ze
 import rbnf.ParserC
-
+env = make_default_env()
 ze_exp = ze.compile('import simple.[*]', use='Grammar')
 
-print(repr(ze_exp.match("""
-fn x -> x
-""").tokens))
+print(repr(
+    analyse(ze_exp.match("""
+let s : 'a = fn x -> x in
+      let d = s "1" in
+      let k = fn x : 'a -> x in k;;
+""").result, env)))
 
 # env = [('.i', Basic('int')), ('.s', Basic('str'))]
 #

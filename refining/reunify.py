@@ -53,7 +53,10 @@ class Env:
         self.set_named_type = _set_named_type
 
         def _get_undecided_type(name):
-            return self.undecided_types.get(name)
+            var = self.undecided_types.get(name)
+            if var:
+                print(var) # TODO
+                return var.prune()[0]
 
         self.get_undecided_type = _get_undecided_type
 
@@ -133,6 +136,7 @@ def specify_type(type_term, ty_env: Env):
 
     elif isinstance(type_term, TypeSlot):
         var = ty_env.get_undecided_type(type_term.name)
+        print('var', ty_env.undecided_types, var)
         if var is None:
             var = Undecided()
             ty_env.set_undecided_type(type_term.name, var)
@@ -160,8 +164,8 @@ def specify_type(type_term, ty_env: Env):
         return make_join(components)
 
     elif isinstance(type_term, TypeFunction):
-        left = specify_type(type_term.left, ty_env)
         new_env = ty_env.create_sub()
+        left = specify_type(type_term.left, ty_env)
         right = specify_type(type_term.right, new_env)
         return make_function(left, right)
     else:
@@ -198,7 +202,7 @@ def analyse(term_: Term, env_: Env):
             return origin_ty
         elif isinstance(term, Lam):
             arg, annotate, body = term.arg, term.annotate, term.ret
-            arg_ty = Undecided(specify_type(annotate, env)) if annotate else Undecided()
+            arg_ty = Undecided(specify_type(annotate, env)).prune()[1] if annotate else Undecided()
             new_env = env.create_sub()
             new_env.set_symbol(arg.repr_str, arg_ty)
             new_env.set_undecided_type(repr(arg_ty), arg_ty)
@@ -207,7 +211,7 @@ def analyse(term_: Term, env_: Env):
 
         elif isinstance(term, Let):
             tag, annotate, value, body = term.tag, term.annotate, term.value, term.do
-            new_ty = Undecided(specify_type(annotate, env)) if annotate else Undecided()
+            new_ty = Undecided(specify_type(annotate, env)).prune()[1] if annotate else Undecided()
             new_env = env.create_sub()
             new_env.set_undecided_type(repr(new_ty), new_ty)
             new_env.set_symbol(tag, new_ty)
@@ -231,7 +235,6 @@ def analyse(term_: Term, env_: Env):
 
         elif isinstance(term, Stmts):
             return reduce(make_statement, (apply_analyze(each) for each in term.terms))
-
 
         raise TypeError
 

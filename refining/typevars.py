@@ -63,6 +63,7 @@ class TypeVar(abc.ABC):
     def unify(self, other: 'TypeVar'):
         _, left = self.prune()
         _, right = other.prune()
+
         if isinstance(right, Undecided):
             left, right = right, left
         return left.unify_impl(right)
@@ -96,7 +97,7 @@ class TypeImpl(TypeVar):
         return any(tuple(stream())), self
 
     def fresh_impl(self, fresh_args: TypeEnvFreshPair):
-        is_freshed_booleans, components = zip(*map(TypeVar.fresh, self.components))
+        is_freshed_booleans, components = zip(*map(lambda _: TypeVar.fresh(_, fresh_args), self.components))
 
         if any(is_freshed_booleans):
             return True, TypeImpl(self.op, components)
