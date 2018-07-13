@@ -3,7 +3,7 @@ pyimport refining.reunify.[*]
 ignore [Space]
 
 SingleQuote := R'\''
-keyword cast := 'let' 'in' 'type' 'fn' 'of' 'rec'
+keyword cast := 'let' 'in' 'type' 'fn' 'of' 'rec' 'if' 'then' 'else' 'true' 'false'
 
 operator_have_to_pre_announce := '=>'
 
@@ -19,6 +19,10 @@ Str ::= DoubleQuotedStr+ as seq
 Num ::= Number as num
         rewrite
             Const(int(num.value))
+
+Bool ::= 'true' as t | 'false'
+        rewrite
+            Const(True) if t else Const(False)
 
 
 Let ::=
@@ -60,10 +64,7 @@ NestedExpr ::=
 
 
 Atom ::= | NestedExpr as v [':' Type as ty]
-         | Num as v  [':' Type as ty]
-         | Sym as v  [':' Type as ty]
-         | Str as v  [':' Type as ty]
-         | Lam as v  [':' Type as ty]
+         | (Num | Bool | Sym | Str | Lam ) as v  [':' Type as ty]
          rewrite Annotate(v, ty) if ty else v
 
 

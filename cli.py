@@ -38,18 +38,19 @@ def main():
     cache = []
 
     def active():
-        it = ze_exp.match(' '.join(cache))
-        if it is None:
-            raise Exception
-        if it.state.end_index != len(it.tokens):
-            idx = min(it.state.max_fetched, len(it.tokens) - 1)
-            tk = it.tokens[idx]
-            raise SyntaxError("line {}, column {}".format(tk.lineno, tk.colno))
-        res = it.result
-        if res is not None:
-            print('=> ', analyze(res, env))
-
-        # err_write(e.__class__.__name__ + ':' + str(e) + '\n')
+        try:
+            it = ze_exp.match(' '.join(cache))
+            if it is None:
+                raise Exception
+            if it.state.end_index != len(it.tokens):
+                idx = min(it.state.max_fetched, len(it.tokens) - 1)
+                tk = it.tokens[idx]
+                raise SyntaxError("line {}, column {}".format(tk.lineno, tk.colno))
+            res = it.result
+            if res is not None:
+                print('=> ', analyze(res, env))
+        except Exception as e:
+            err_write(e.__class__.__name__ + ':' + str(e) + '\n')
 
         cache.clear()
 
