@@ -1,5 +1,24 @@
 import typing
 import functools
+from .setting import debug
+
+if debug:
+    def log(func):
+        def apply(*args):
+            result = func(*args)
+            print('terms:', args[0])
+            print('analyzed type:', result)
+            print('env:', args[-1])
+            print('===============================')
+            return result
+
+        return apply
+
+
+    print('open debugging')
+else:
+    def log(_):
+        return _
 
 K = typing.TypeVar('K')
 V = typing.TypeVar('V')

@@ -105,11 +105,13 @@ class TypeInduct(Eq, TypeTerm, Hint):
 
 
 class TypeDef(Eq, TypeTerm, Hint):
-    induct: TypeInduct
+    name: str
+    args: typing.Tuple[str]
     impl: TypeTerm
 
     def __repr__(self):
-        return 'type {} = {!r}'.format(self.induct, self.impl)
+        return 'type {}{} = {!r}'.format(self.name, '[{}]'.format(
+                ', '.join(map(lambda _: '\'' + _, self.args))) if self.args else "", self.impl)
 
 
 class TypeAbbr(Eq, TypeTerm, Hint):

@@ -75,6 +75,13 @@ class TypeVar(abc.ABC):
     def pruned(self):
         return self.prune()[1]
 
+    def freshed(self, fresh_args: TypeEnvFreshPair):
+        return self.fresh(fresh_args)[1]
+
+    def unified(self, other):
+        if not self.unify(other):
+            raise TypeError
+
 
 class TypeImpl(TypeVar):
     op: TypeOperator
@@ -148,6 +155,49 @@ class Basic(TypeVar):
 
     def __repr__(self):
         return '{}`{}'.format(self.name, self._unique_id)
+
+
+class RecordType(TypeVar):
+    fields: typing.Dict[str, TypeVar]
+
+    def __init__(self, fields):
+        self.fields = dict(sorted(fields.items()))
+
+    def prune(self) -> typing.Tuple[bool, 'TypeVar']:
+        def stream():
+            components = tuple(self.fields.items())
+            fields = self.fields
+            for k, v in components:
+                is_pruned, v = v.prune()
+                if is_pruned:
+                    fields[k] = v
+                yield is_pruned
+
+        return any(tuple(stream())), self
+
+    def iter_fields(self):
+        for each in self.fields.values():
+            yield from each.iter_fields()
+
+    def occur_in(self, types: typing.Iterable['TypeVar']):
+        _, undecided = self.prune()
+        for each in types:
+            if undecided in each.iter_fields():
+                return True
+        return False
+
+    def unify_impl(self, other: 'TypeVar'):
+        if not isinstance(other, RecordType):
+            return False
+
+        return all((k1 == k2 and v1.unify(v2)) for (k1, v1), (k2, v2) in zip(self.fields.items(), other.fields.items()))
+
+    def fresh_impl(self, fresh_args: TypeEnvFreshPair):
+        is_freshed_booleans, values = zip(*map(lambda _: TypeVar.fresh(_, fresh_args), self.fields.values()))
+
+        if any(is_freshed_booleans):
+            return True, RecordType(dict(zip(self.fields.keys(), values)))
+        return False, self
 
 
 type_name_unique_id = 0
@@ -235,27 +285,23 @@ def make_union(left, right):
     return TypeImpl(union_op, [left, right])
 
 
-def make_induct(left, right):
-    return TypeImpl(induct_op, [left, right])
+def make_induct(basic, *args):
+    assert isinstance(basic, Basic)
+    return TypeImpl(induct_op, [basic, *args])
 
 
 def make_statement(left, right):
     return TypeImpl(statement_op, [left, right])
 
 
+# the essential basic types
+bool_type = make_basic('bool')
+unit_type = make_basic('unit')
+
 if __name__ == '__main__':
     a = Undecided(None)
     b = Undecided(None)
     i32 = Basic("i32")
-    tp1 = make_join(i32, a)
+    tp1 = make_join([i32, a])
 
     print(a.occur_in([tp1]))
-
-"""
-
-type S = 
-    | A a 
-    | B b 
-
-
-"""

@@ -1,9 +1,10 @@
 from refining.reunify import *
 import rbnf.zero as ze
-import rbnf.ParserC
+from refining.demo_checker.env import *
 
 env = make_default_env()
 ze_exp = ze.compile('import simple.[*]', use='Grammar')
+analyze = init_analyzer(type_mapper)
 
 print(repr(analyze(ze_exp.match("""
 let s = fn x: 'a -> x in

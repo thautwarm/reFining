@@ -3,7 +3,7 @@ pyimport refining.reunify.[*]
 ignore [Space]
 
 SingleQuote := R'\''
-keyword cast := 'let' 'in' 'type' 'fn' 'of' 'rec' 'if' 'then' 'else' 'true' 'false'
+keyword cast := 'let' 'in' 'type' 'fn' 'of' 'rec' 'if' 'then' 'else' 'true' 'false' 'alias'
 
 operator_have_to_pre_announce := '=>'
 
@@ -38,6 +38,7 @@ If  ::=
 
 Expr ::= | Let as v
          | App as v
+         | If  as v
          rewrite v
 
 App  ::= Atom+ as seq
@@ -89,23 +90,31 @@ FunctionType
 
 AtomType
         ::= | '(' Type     as nested ')'
-            | Name as name ['of' Type as args]
+            | Name as name ['of' Type as args]  #TODO generic: T['a, 'b] not T of 'a, 'b anymore
             | SingleQuote Name as undecided
             rewrite
                 TypeInduct(TypeSym(name.value), args) if args else\
                 TypeSym(name.value) if name else\
                 TypeSlot(undecided.value)
 
+TypeFormalArg ::= SingleQuote Name as name
+                rewrite
+                    name.value
 
-
-TypeDef ::= 'type' Name as name ['of' Type as induct_arg] '=' Type as expand
+TypeFormalArgSeq ::= TypeFormalArg as head (',' TypeFormalArg)* as tail
+                    rewrite
+                        (head, *tail[1::2])
+TypeDef ::= 'type' Name as name ['[' TypeFormalArgSeq as args ']'] '=' Type as expand
             rewrite
-                TypeDef(TypeInduct(TypeSym(name.value), induct_arg), expand) \
-                if induct_arg else TypeAbbr(name.value, expand)
+                TypeDef(name.value, args if args else (), expand)
+
+TypeAbbr ::= 'alias' Name as name '=' Type as expand
+             rewrite TypeAbbr(name.value, expand)
 
 
-Stmt ::= | Expr    as v
-         | TypeDef as v
+Stmt ::= | Expr     as v
+         | TypeDef  as v
+         | TypeAbbr as v
          rewrite v
 
 Grammar  ::= (Stmt [';'])+ as seq

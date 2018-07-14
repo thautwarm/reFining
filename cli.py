@@ -2,11 +2,13 @@ from refining import setting
 
 setting.debug = False
 from refining.reunify import *
+from refining.demo_checker.env import *
 import rbnf.zero as ze
 import readline, io, sys
 
-KeyWords = ['let', 'in', 'type', 'fn']
+KeyWords = ['let', 'in', 'type', 'fn', 'alias']
 env = make_default_env()
+analyze = init_analyzer(type_mapper)
 ze_exp = ze.compile('import simple.[*]', use='Grammar')
 
 
