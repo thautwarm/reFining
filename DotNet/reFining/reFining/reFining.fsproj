@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="utils.fs" />
+    <Compile Include="infr.fs" />
+    <Compile Include="unify.fs" />
+  </ItemGroup>
+
+</Project>
