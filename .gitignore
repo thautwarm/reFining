@@ -5,6 +5,9 @@ __pycache__/
 *.idea/
 # C extensions
 *.so
+*.pdb
+*.dll
+*.cache
 
 # Distribution / packaging
 .Python

@@ -13,8 +13,10 @@ let rec unify (state: state) l r =
             }
         | Op(Arrow, l1, r1), Op(Arrow, l2, r2)
             ->
-            let state, l1 = free state l1
-            let state, l2 = free state l2
+            let frees1 = get_frees state l1
+            let frees2 = get_frees state l2
+            let state, l1 = free state frees1 l1
+            let state, l2 = free state frees2 l2
             state {
                let! state = unify_rec state (l1, l2)
                let! state = unify_rec state (r1, r2)
@@ -32,7 +34,7 @@ let rec unify (state: state) l r =
             state {
                 if l_id = r_id then
                     return! state
-                elif occur_in state (l, r) then
+                elif occur_in state l r then
                     return state.fail (l, r) ""
                 else
                     return! state.write_store l_id <| Ref r_id
@@ -46,17 +48,26 @@ let rec unify (state: state) l r =
 
 type HM = {
     _store: Map<int, Type>
+    mutable id: int
  }
  with 
     interface state with
         member hm.store = hm._store
-        
+        member hm.allocate_id = 
+            let id = hm.id
+            hm.id <- id + 1
+            id
+
+        member hm.allocate_tvar = 
+            let hm = hm :> state
+            Ref hm.allocate_id
         member hm.fail (a, b) msg =
             Err(sprintf "%A(%A <> %A)" msg a b, hm)
 
         member hm.write_store i ty =
             upcast {hm with _store = Map.add i ty hm._store}
-        
+        member hm.reset_store store =
+            upcast {hm with _store = store}
         member __.Bind ((m, mf)) =
             match m with
             | Ok state -> mf state
