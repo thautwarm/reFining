@@ -1,6 +1,0 @@
-C:\Users\v-wazhao\source\repos\reFining\reFining\bin\Debug\netcoreapp2.1\reFining.deps.json
-C:\Users\v-wazhao\source\repos\reFining\reFining\bin\Debug\netcoreapp2.1\reFining.dll
-C:\Users\v-wazhao\source\repos\reFining\reFining\bin\Debug\netcoreapp2.1\reFining.pdb
-C:\Users\v-wazhao\source\repos\reFining\reFining\obj\Debug\netcoreapp2.1\reFining.dll
-C:\Users\v-wazhao\source\repos\reFining\reFining\obj\Debug\netcoreapp2.1\reFining.pdb
-C:\Users\v-wazhao\source\repos\reFining\reFining\obj\Debug\netcoreapp2.1\reFining.fsprojAssemblyReference.cache

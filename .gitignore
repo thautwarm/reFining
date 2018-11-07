@@ -8,6 +8,10 @@ __pycache__/
 *.pdb
 *.dll
 *.cache
+**/obj/
+**/bin/Debug/
+**/bin/Release/
+
 
 # Distribution / packaging
 .Python
