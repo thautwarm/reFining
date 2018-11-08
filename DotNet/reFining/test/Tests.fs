@@ -137,3 +137,93 @@ type Test(out: ITestOutputHelper) =
             println it
             false
         |> Assert.True
+
+    [<Fact>]
+    let ``test implies`` () =
+        let state: state = new_state()
+        let t1 = Prim Int
+        let t2 = Prim Float
+        let t3 = Op(Arrow, t1, t2)
+        let state, tvar1 = allocate_tvar state
+        let state, tvar2 = allocate_tvar state
+        
+
+        let arrow_t =  
+            Forall(
+                to_free_set [tvar1; tvar2], 
+                Guard(Op(Arrow, tvar1, tvar2), 
+                      Imply(Eq(tvar1, t1), Eq(tvar2, t2))))
+            
+        let arrow_t1 = Op(Arrow, t1, t1) // err
+        let arrow_t2 = Op(Arrow, t1, t2) // ok
+        let arrow_t3 = Op(Arrow, t2, t3) // ok
+
+        let state, tvar3 = allocate_tvar state
+        let state, tvar4 = allocate_tvar state
+        let arrow_tn = Op(Arrow, tvar3, tvar4)
+
+        let res1 = 
+            unify arrow_t arrow_tn state >>= fun state ->
+            unify arrow_tn arrow_t1 state >>= fun state ->
+            ok state
+        
+        let res2 = 
+            unify arrow_t arrow_t2 state >>= fun state ->
+            ok state 
+
+        let res3 = 
+            unify arrow_t arrow_t3 state >>= fun state ->
+            ok state
+
+        match res1, res2, res3 with
+        | Fail _, Success _, Success _ ->
+            true
+
+        | _ ->
+            false
+        |> Assert.True
+
+    [<Fact>]
+    let ``test not`` () =
+        let state: state = new_state()
+        let t1 = Prim Int
+        let t2 = Prim Float
+        let t3 = Op(Arrow, t1, t2)
+        let state, tvar1 = allocate_tvar state
+        let state, tvar2 = allocate_tvar state
+        
+
+        let arrow_t =  
+            Forall(
+                to_free_set [tvar1; tvar2], 
+                Guard(Op(Arrow, tvar1, tvar2), 
+                      Not <| Eq(tvar1, t1)))
+            
+        let arrow_t1 = Op(Arrow, t1, t1) // err
+        let arrow_t2 = Op(Arrow, t1, t2) // err
+        let arrow_t3 = Op(Arrow, t2, t3) // ok
+
+        let state, tvar3 = allocate_tvar state
+        let state, tvar4 = allocate_tvar state
+        let arrow_tn = Op(Arrow, tvar3, tvar4)
+
+        let res1 = 
+            unify arrow_t arrow_tn state >>= fun state ->
+            unify arrow_tn arrow_t1 state >>= fun state ->
+            ok state
+        
+        let res2 = 
+            unify arrow_t arrow_t2 state >>= fun state ->
+            ok state 
+
+        let res3 = 
+            unify arrow_t arrow_t3 state >>= fun state ->
+            ok state
+
+        match res1, res2, res3 with
+        | Fail _, Fail _, Success _ ->
+            true
+
+        | _ ->
+            false
+        |> Assert.True

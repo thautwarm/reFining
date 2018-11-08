@@ -28,29 +28,35 @@ and T =
 type err =
 | Msg_err of string
 | Type_err of T * T
+| Cond_err of cond
 | Join_err of err * err
+| Err
 
 and checking = err list * state list // many states
 
 and state = {
-    store: Map<int, T>
-    id   : int
+    store     : Map<int, T>
+    negations : cond list 
+    id        : int
 }
 
-let new_state() = {store = Map.ofSeq []; id = 0}
+let new_state() = {store=Map.ofSeq []; id=0; negations=[]}
 
-
-let (>>=) (m: checking) (mf: state -> checking) = 
-    let errs, states = m
-    let rec impl : state list -> err list * state list=
+let check_all mf : 'a list -> checking =
+    let rec impl = 
         function
         | [] -> [], []
         | x :: xs ->
         let errs1, x = mf x
         let errs2, xs = impl xs
         errs1 @ errs2, x @ xs
-    
-    let errs', states = impl states
+    impl 
+
+
+
+let (>>=) (m: checking) (mf: state -> checking) = 
+    let errs, states = m
+    let errs', states = check_all mf states
     errs @ errs', states
     
 let update_store_types ref_id t (store: Map<int, T>) = 
@@ -64,8 +70,8 @@ let update_store_refs ref_id new_ref_id (store: Map<int, T>) =
         else yield ref_id, v
     }
 
-let allocate_id {id=id; store = store} = 
-    {store=store; id=id + 1}, id
+let allocate_id ({id = id} as state) =
+    {state with id=id + 1}, id
 
 let allocate_tvar state = 
     let state, id = allocate_id state
@@ -248,4 +254,10 @@ let to_free_set tvars =
         | a -> failwithf "invalid TVar %A" a
     ]
 
-        
+type type_check(state: state) =
+    let state' = ref state
+    member __.Bind m mf = 
+        let state, obj = m !state'
+        state' := state
+        mf obj !state'
+    
