@@ -2,9 +2,9 @@
 open refining.infr
 
 let rec unify (state: state) l r =
-    let state, l = prune l state
-    let state, r = prune r state
     let rec unify_rec l r (state: state) = 
+        let state, l = prune l state
+        let state, r = prune r state
         match (l, r) with
         | (Prim _ as l), (Prim _ as r)->
             if l <> r then 
@@ -15,13 +15,14 @@ let rec unify (state: state) l r =
             else Ok(state, l)
         | Op(Arrow, l1, r1), Op(Arrow, l2, r2)
             ->
-            let frees1 = get_frees state l1
-            let frees2 = get_frees state l2
-            let state, l1 = free state frees1 l1
-            let state, l2 = free state frees2 l2
-            let state, r1 = free state frees1 r1
-            let state, r2 = free state frees2 r2
+            let state, frees1 = get_frees state l1
+            let state, frees2 = get_frees state l2
             
+            let l1 = free state frees1 l1
+            let r1 = free state frees1 r1
+            let l2 = free state frees2 l2
+            let r2 = free state frees2 r2
+
             unify_rec l1 l2 state >>= fun state l ->
             unify_rec r1 r2 state >>= fun state r ->
             let arrow = Op(Arrow, l, r)

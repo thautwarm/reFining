@@ -90,10 +90,7 @@ let get_frees (state: state) t =
             match Map.tryFind ref_id state.store with
             | Some t -> get_frees t
             | _ -> set [ref_id]
-    get_frees t
-
-
-let free (state: state) (ref_ids: Set<int>) t: state * Type =
+    let ref_ids = get_frees t
     let state, auto_comp = 
         List.fold
         <| fun (state, lst) ref_id ->
@@ -101,21 +98,27 @@ let free (state: state) (ref_ids: Set<int>) t: state * Type =
             state, (ref_id, new_ref_id) :: lst
         <| (state, [])
         <| (List.ofSeq ref_ids)
-    let auto_comp = Map.ofSeq auto_comp
-    let rec free (state: state) =
+    state, Map.ofList auto_comp
+    
+
+
+let free state auto_comp t: Type =
+    let rec free =
         function
         | Prim _ as t -> t
         | Op(op, l, r) ->
-            let l = free state l
-            let r = free state r
+            let l = free l
+            let r = free r
             Op(op, l, r)
-        | Ref ref_id ->
+        | Ref ref_id as t ->
         match Map.tryFind ref_id auto_comp with
         | Some new_ref_id ->            
             Ref new_ref_id
         | _ -> 
-        free state <| state.store.[ref_id]
-    state, free state t  
+        match Map.tryFind ref_id state.store with
+        | Some t -> free t
+        | None   -> t
+    free t  
 
 
 type occur = 
