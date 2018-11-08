@@ -15,38 +15,68 @@ type Type =
 | Op   of TypeOp * Type * Type
 | Ref  of int
 
+type err =
+| Msg_err of string
+| Type_err of Type * Type
+| Join_err of err * err
 
-type store_env = Map<int, Type>
+type 'a checking = 
+| Err of err 
+| Ok  of state * 'a
 
-type checking = 
-| Err of string * state
-| Ok of state
+and state = {
+    store: Map<int, Type>
+    id   : int
+}
 
-and state = interface
-    abstract member store: store_env
-    abstract member fail: Type * Type -> string -> checking
-    abstract member write_store: int -> Type -> state
-    abstract member reset_store: store_env -> state
-    abstract member Bind: (checking * (state -> checking)) -> checking
-    abstract member Return: checking -> checking
-    abstract member ReturnFrom: state -> checking
-    abstract member allocate_id: int
-    abstract member allocate_tvar: Type
-end
+let new_state() = {store = Map.ofSeq []; id = 0}
 
-let rec prune (state: state) =
-    function 
+let (>>=) m mf = 
+    match m with
+    | Ok(state, ty) -> mf state ty
+    | e -> e
+
+let update_store_types ref_id t (store: Map<int, Type>) = 
+    Map.add ref_id t store
+
+let update_store_refs ref_id new_ref_id (store: Map<int, Type>) = 
+    Map.ofSeq <| seq {
+        for KV(k, v) in store do 
+        if k = ref_id 
+        then yield new_ref_id, v
+        else yield ref_id, v
+    }
+
+let allocate_id {id=id; store = store} = 
+    {store=store; id=id + 1}, id
+
+let allocate_tvar state = 
+    let state, id = allocate_id state
+    state, Ref id
+
+let free_store ref_id new_ref_id (store: Map<int, Type>): Map<int, Type> = 
+    Map.ofSeq <| seq {
+        for KV(k, v) in store do 
+        if k = ref_id 
+        then yield new_ref_id, v
+        yield ref_id, v
+    }
+   
+
+let rec prune t (state: state): state * Type =
+    
+    match t with 
     | Prim _ as it -> state, it
     | Op(op, l, r) ->
-      let state, l = prune state l
-      let state, r = prune state r
+      let state, l = prune l state
+      let state, r = prune r state
       state, Op(op, l, r)
     | Ref ref_id as t ->
     let store = state.store
     match Map.tryFind ref_id store with
     | Some t ->
-        let state, t = prune state t
-        state.write_store ref_id t
+        let state, t = prune t state
+        {state with store = update_store_types ref_id t store}
         , t
     | None -> state, t
 
@@ -63,46 +93,56 @@ let get_frees (state: state) t =
     get_frees t
 
 
-let free (state: state) (ref_ids: Set<int>) t =
-    let auto_comp = missing_dict (fun _ -> state.allocate_id)
+let free (state: state) (ref_ids: Set<int>) t: state * Type =
+    let state, auto_comp = 
+        List.fold
+        <| fun (state, lst) ref_id ->
+            let state, new_ref_id = allocate_id state
+            state, (ref_id, new_ref_id) :: lst
+        <| (state, [])
+        <| (List.ofSeq ref_ids)
+    let auto_comp = Map.ofSeq auto_comp
     let rec free (state: state) =
         function
-        | Prim _ as t -> state, t
+        | Prim _ as t -> t
         | Op(op, l, r) ->
-            let state, l = free state l
-            let state, r = free state r
-            state, Op(op, l, r)
-        | Ref ref_id->
-        if ref_ids.Contains ref_id then
-            let new_ref_id = auto_comp.get ref_id
-            let store = state.store
-            let new_store =
-                Map.ofSeq <| seq {
-                    for KV(k, v) in store do 
-                    if k = ref_id 
-                    then yield new_ref_id, v
-                    yield ref_id, v
-                }
-            let state = state.reset_store new_store
-            state, Ref new_ref_id
-        else
+            let l = free state l
+            let r = free state r
+            Op(op, l, r)
+        | Ref ref_id ->
+        match Map.tryFind ref_id auto_comp with
+        | Some new_ref_id ->            
+            Ref new_ref_id
+        | _ -> 
         free state <| state.store.[ref_id]
-    free state t  
+    state, free state t  
 
+
+type occur = 
+ | Just_occur 
+ | Recur_occur
+ | No_occur
 
 let occur_in (state: state) a b =
-    let undecided = get_frees state a
+    let state, a = prune a state
+    let state, b = prune b state
+    match a with
+    | Op _ | Prim _ -> state, No_occur
+    | Ref a ->
     let rec contains = 
         function
-        | Ref ref_id when undecided.Contains ref_id ->
-            true
+        | Ref ref_id when a = ref_id ->
+            Just_occur
         | Ref ref_id ->
             match Map.tryFind ref_id state.store with
             | Some t -> contains t
-            | None -> false
-        | Op(_, l, r) -> contains l || contains r
-        | _ -> false
-    contains b
+            | None -> No_occur
+        | Op(_, l, r) -> 
+            if contains l <> No_occur || contains r <> No_occur then
+                Recur_occur
+            else No_occur
+        | _ -> No_occur
+    state, contains b
 
 
 

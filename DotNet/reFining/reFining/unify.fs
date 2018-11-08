@@ -2,81 +2,62 @@
 open refining.infr
 
 let rec unify (state: state) l r =
-    let state, l = prune state l
-    let state, r = prune state r
-    let rec unify_rec (state: state) = 
-        function
-        | Prim l, Prim r ->
-            state {
-                if l <> r then return state.fail (Prim l, Prim r) "not_equal"
-                else return! state
-            }
+    let state, l = prune l state
+    let state, r = prune r state
+    let rec unify_rec l r (state: state) = 
+        match (l, r) with
+        | (Prim _ as l), (Prim _ as r)->
+            if l <> r then 
+                let msg = Msg_err "not_equal"
+                let mismatch = Type_err(l, r)
+                let join = Join_err(msg, mismatch)
+                Err join
+            else Ok(state, l)
         | Op(Arrow, l1, r1), Op(Arrow, l2, r2)
             ->
             let frees1 = get_frees state l1
             let frees2 = get_frees state l2
             let state, l1 = free state frees1 l1
             let state, l2 = free state frees2 l2
-            state {
-               let! state = unify_rec state (l1, l2)
-               let! state = unify_rec state (r1, r2)
-               return! state
-            }
-        | Op(Join, l1, r1), Op(Join, l2, r2)
-        | Op(Stmt, l1, r1), Op(Stmt, l2, r2)
-            ->
-            state {
-               let! state = unify_rec state (l1, l2)
-               let! state = unify_rec state (r1, r2)
-               return! state
-            }
-        | (Ref l_id as l), (Ref r_id as r)->
-            state {
-                if l_id = r_id then
-                    return! state
-                elif occur_in state l r then
-                    return state.fail (l, r) ""
-                else
-                    return! state.write_store l_id <| Ref r_id
-            }
-        | Ref ref_id, r ->
-            state { return! state.write_store ref_id r }
-        | l, (Ref _ as r) -> unify_rec state (r, l)
-        | _ as tp -> state.fail tp "unmatched"
-
-    unify_rec state (l, r)
-
-type HM = {
-    _store: Map<int, Type>
-    mutable id: int
- }
- with 
-    interface state with
-        member hm.store = hm._store
-        member hm.allocate_id = 
-            let id = hm.id
-            hm.id <- id + 1
-            id
-
-        member hm.allocate_tvar = 
-            let hm = hm :> state
-            Ref hm.allocate_id
-        member hm.fail (a, b) msg =
-            Err(sprintf "%A(%A <> %A)" msg a b, hm)
-
-        member hm.write_store i ty =
-            upcast {hm with _store = Map.add i ty hm._store}
-        member hm.reset_store store =
-            upcast {hm with _store = store}
-        member __.Bind ((m, mf)) =
-            match m with
-            | Ok state -> mf state
-            | _ as m -> m
-        
-        member __.Return i = i
-        
-        member __.ReturnFrom i = Ok i
-
+            let state, r1 = free state frees1 r1
+            let state, r2 = free state frees2 r2
             
+            unify_rec l1 l2 state >>= fun state l ->
+            unify_rec r1 r2 state >>= fun state r ->
+            let arrow = Op(Arrow, l, r)
+            Ok(state, arrow)
+
+        | Op(op1, l1, r1), Op(op2, l2, r2) when op1 = op2 ->
+            unify_rec l1 l2 state >>= fun state l ->
+            unify_rec r1 r2 state >>= fun state r ->
+            let opr = Op(op1, l, r)
+            Ok(state, opr)
+        | (Ref l_id as l), (Ref r_id as r)->
+            if l_id = r_id then
+                Ok(state, l)
+            else
+            let state, occur = occur_in state l r
+            if occur = Recur_occur then
+                let msg = Msg_err "recursive"
+                Err msg
+            else
+            let state = {
+                state with 
+                    store = update_store_types l_id r state.store
+            }
+            Ok(state, l)
+        | Ref ref_id, r ->
+            let state = {
+                state with 
+                    store = update_store_types ref_id r state.store
+            }
+            Ok(state, r)
+
+        | l, (Ref _ as r) -> unify_rec r l state
+        | l, r -> 
+        let mismatch = Type_err(l, r)
+        let msg = Msg_err "unsolved"
+        Err <| Join_err(msg, mismatch)
+    unify_rec l r state
             
         
