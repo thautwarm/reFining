@@ -44,7 +44,7 @@ type Test(out: ITestOutputHelper) =
         let t3 = Op(Arrow, t1, t2)
 
         let state, tvar = allocate_tvar state
-        let arrow_t = Op(Arrow, tvar, tvar)
+        let arrow_t =  Op(Forall, tvar, Op(Arrow, tvar, tvar))
         let arrow_t2 = Op(Arrow, t1, t1)
         let arrow_t3 = Op(Arrow, t2, t2)
         let arrow_t4 = Op(Arrow, t3, t3)

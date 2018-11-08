@@ -1,23 +1,25 @@
 ﻿module refining.infr
 open refining.utils
+open System
+
 type Prim = 
 | Int
 | Float
 
-type TypeOp = 
+and TypeOp = 
 | Arrow
 | Join
 | Stmt
+| Forall
 
-// there should be 2 kinds of Ref in order to avoid value restriction.
-type Type = 
+and primitive = 
 | Prim of Prim
-| Op   of TypeOp * Type * Type
+| Op   of TypeOp * primitive * primitive
 | Ref  of int
 
 type err =
 | Msg_err of string
-| Type_err of Type * Type
+| Type_err of primitive * primitive
 | Join_err of err * err
 
 type 'a checking = 
@@ -25,7 +27,7 @@ type 'a checking =
 | Ok  of state * 'a
 
 and state = {
-    store: Map<int, Type>
+    store: Map<int, primitive>
     id   : int
 }
 
@@ -36,10 +38,10 @@ let (>>=) m mf =
     | Ok(state, ty) -> mf state ty
     | e -> e
 
-let update_store_types ref_id t (store: Map<int, Type>) = 
+let update_store_types ref_id t (store: Map<int, primitive>) = 
     Map.add ref_id t store
 
-let update_store_refs ref_id new_ref_id (store: Map<int, Type>) = 
+let update_store_refs ref_id new_ref_id (store: Map<int, primitive>) = 
     Map.ofSeq <| seq {
         for KV(k, v) in store do 
         if k = ref_id 
@@ -54,7 +56,7 @@ let allocate_tvar state =
     let state, id = allocate_id state
     state, Ref id
 
-let free_store ref_id new_ref_id (store: Map<int, Type>): Map<int, Type> = 
+let free_store ref_id new_ref_id (store: Map<int, primitive>): Map<int, primitive> = 
     Map.ofSeq <| seq {
         for KV(k, v) in store do 
         if k = ref_id 
@@ -63,8 +65,7 @@ let free_store ref_id new_ref_id (store: Map<int, Type>): Map<int, Type> =
     }
    
 
-let rec prune t (state: state): state * Type =
-    
+let rec prune t (state: state): state * primitive =
     match t with 
     | Prim _ as it -> state, it
     | Op(op, l, r) ->
@@ -83,7 +84,7 @@ let rec prune t (state: state): state * Type =
 let get_frees (state: state) t =
     let rec get_frees = 
         function
-        | Prim _ as it -> Set.empty
+        | Prim _ -> Set.empty
         | Op(_, l, r) -> 
             Set.union <| get_frees l <| get_frees r
         | Ref ref_id ->
@@ -102,7 +103,7 @@ let get_frees (state: state) t =
     
 
 
-let free state auto_comp t: Type =
+let free state auto_comp t: primitive =
     let rec free =
         function
         | Prim _ as t -> t
