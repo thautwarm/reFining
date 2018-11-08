@@ -11,6 +11,7 @@ __pycache__/
 **/obj/
 **/bin/Debug/
 **/bin/Release/
+**.vs/
 
 
 # Distribution / packaging
