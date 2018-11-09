@@ -13,8 +13,7 @@ let (|Fail|Success|) (errs, states) =
     match states with
     | [] -> Fail errs
     | _ -> Success states 
-
-            
+      
 let rec fit_cond cond state = 
     match cond with
     | Eq(a, b) -> 
@@ -46,6 +45,7 @@ and unify l r state =
         let state, l = prune l state
         let state, r = prune r state
         match (l, r) with
+        
         | (Prim _ as l), (Prim _ as r)->
             if l <> r then
                 let msg = Msg_err "not_equal"
@@ -53,7 +53,8 @@ and unify l r state =
                 let join = Join_err(msg, mismatch)
                 err join
             else ok state
-
+        | DataType(s1, t1), DataType(s2, t2) when s1 = s2 ->
+            unify t1 t2 state
         | Guard(t, cond), other
         | other, Guard(t, cond) ->
             fit_cond cond state >>= fun state ->
@@ -99,10 +100,7 @@ and unify l r state =
         let msg = Msg_err "unsolved"
         err <| Join_err(msg, mismatch)
     
-
-    unify l r state 
-    >>= fun state ->
-        // negations might be recursive?
+    let rec resolve_negation (state: state) =
         let negations = state.negations
         if List.isEmpty negations then 
             ok state
@@ -110,8 +108,8 @@ and unify l r state =
         let state = {state with negations = []}
         let its = 
             List.filter 
-            <| fun neg -> 
-                match fit_cond neg state with
+            <| fun neg ->
+                match fit_cond neg state >>= resolve_negation with
                 | Success _ -> true
                 | _         -> false
             <| negations
@@ -124,7 +122,4 @@ and unify l r state =
              <| List.map Cond_err its
         err e
         
-         
-
-            
-        
+    unify l r state >>= resolve_negation

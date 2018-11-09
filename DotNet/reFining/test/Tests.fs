@@ -227,3 +227,28 @@ type Test(out: ITestOutputHelper) =
         | _ ->
             false
         |> Assert.True
+
+    [<Fact>]
+    let ``test datatype`` () =
+        let state: state = new_state()
+        let t1 = Prim Int
+        let t2 = Prim Float
+        let t3 = Op(Arrow, t1, t2)
+        let L = datatype "List"
+        let cons = Op(Arrow, t1, Op(Arrow, L t1, L t1))
+
+        let state, a = allocate_tvar state
+        let specialized = Op(Arrow, a, Op(Arrow, L a, L a))
+
+        let res1 = 
+            unify cons specialized state >>= fun state ->
+            ok state
+        
+        println res1
+        match res1 with
+        | Success _ ->
+            true
+
+        | _ ->
+            false
+        |> Assert.True

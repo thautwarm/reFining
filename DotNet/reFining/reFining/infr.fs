@@ -18,12 +18,17 @@ and type_op =
 | Join
 | Stmt
 
+and signature = {
+    name: string
+}
+
 and T = 
-| Prim   of prim
-| Op     of type_op * T * T
-| Ref    of int
-| Forall of int Set * T 
-| Guard of T * cond
+| Prim     of prim
+| Op       of type_op * T * T
+| Ref      of int
+| Forall   of int Set * T 
+| Guard    of T * cond
+| DataType of signature * T
 
 type err =
 | Msg_err of string
@@ -89,6 +94,9 @@ let free_store ref_id new_ref_id (store: Map<int, T>): Map<int, T> =
 let rec prune t (state: state): state * T =
     match t with 
     | Prim _ -> state, t
+    | DataType(sig', t) ->
+        let state, t = prune t state
+        state, DataType(sig', t)
     | Forall(int_set, t) ->
         // assert
         if 
@@ -138,41 +146,6 @@ let rec prune t (state: state): state * T =
         t
     | None -> state, t
 
-//let get_frees (state: state) t =
-//    let rec get_frees = 
-//        function
-//        | Prim _ -> Set.empty
-//        | Op(_, l, r) -> 
-//            Set.union <| get_frees l <| get_frees r
-//        | Ref ref_id ->
-//            match Map.tryFind ref_id state.store with
-//            | Some t -> get_frees t
-//            | _ -> set [ref_id]
-//        | Forall(free_lst, t) ->
-//            Set.difference <| get_frees t <| free_lst
-//        | Guard(t, cond) ->
-//            let rec collect = 
-//                function
-//                | Eq t -> get_frees t
-//                | Not a -> collect a
-//                | Imply(a, b) | And(a, b) | Or(a, b) -> 
-//                    Set.union 
-//                    <| collect a
-//                    <| collect b
-//            let from_cond = collect cond
-//            Set.union <| get_frees t <| from_cond
-
-
-//    let ref_ids = get_frees t
-//    let state, auto_comp = 
-//        List.fold
-//        <| fun (state, lst) ref_id ->
-//            let state, new_ref_id = allocate_id state
-//            state, (ref_id, new_ref_id) :: lst
-//        <| (state, [])
-//        <| (List.ofSeq ref_ids)
-//    state, Map.ofList auto_comp
-
 let frees_to_comp_map ref_ids state =
     let state, auto_comp = 
         List.fold
@@ -188,6 +161,9 @@ let free state auto_comp t: T =
     let rec free =
         function
         | Prim _ as t -> t
+        | DataType(sig', t) ->
+            let t = free t
+            DataType(sig', t)
         | Forall(int_set, t) ->
             Forall(int_set, free t)
         | Op(op, l, r) ->
@@ -226,7 +202,7 @@ let occur_in (state: state) a b =
     let state, a = prune a state
     let state, b = prune b state
     match a with
-    | Guard _ | Forall _ | Op _ | Prim _ -> state, No_occur
+    | Guard _ | Forall _ | Op _ | Prim _ | DataType _ -> state, No_occur
     | Ref a ->
     let rec contains = 
         function
@@ -254,10 +230,6 @@ let to_free_set tvars =
         | a -> failwithf "invalid TVar %A" a
     ]
 
-type type_check(state: state) =
-    let state' = ref state
-    member __.Bind m mf = 
-        let state, obj = m !state'
-        state' := state
-        mf obj !state'
-    
+let datatype name ty_arg = 
+    DataType({name = name}, ty_arg)
+  
