@@ -197,11 +197,11 @@ type Test(out: ITestOutputHelper) =
             Forall(
                 to_free_set [tvar1; tvar2], 
                 Guard(Op(Arrow, tvar1, tvar2), 
-                      Not <| Eq(tvar1, t1)))
+                      Not >> Not <| Eq(tvar1, t1)))
             
-        let arrow_t1 = Op(Arrow, t1, t1) // err
-        let arrow_t2 = Op(Arrow, t1, t2) // err
-        let arrow_t3 = Op(Arrow, t2, t3) // ok
+        let arrow_t1 = Op(Arrow, t1, t1)
+        let arrow_t2 = Op(Arrow, t1, t2)
+        let arrow_t3 = Op(Arrow, t2, t3)
 
         let state, tvar3 = allocate_tvar state
         let state, tvar4 = allocate_tvar state
@@ -221,7 +221,7 @@ type Test(out: ITestOutputHelper) =
             ok state
 
         match res1, res2, res3 with
-        | Fail _, Fail _, Success _ ->
+        | Success _, Success _, Fail _ ->
             true
 
         | _ ->
