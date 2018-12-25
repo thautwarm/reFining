@@ -14,31 +14,29 @@ let (|Fail|Success|) (errs, states) =
     | [] -> Fail errs
     | _ -> Success states 
       
-let rec fit_cond cond state = 
+let rec fit_cond cond state =
+    let for_or a b state =
+        let errs1, states1 = fit_cond a state
+        let errs2, states2 = fit_cond b state
+        errs1 @ errs2, states1 @ states2
+    let for_and a b state =
+        fit_cond a state >>= fun state ->
+        fit_cond b state >>= fun state -> 
+        ok state
     match cond with
     | Eq(a, b) -> 
         unify a b state >>= fun state ->
         ok state
-    | And(a, b) ->
-        fit_cond a state >>= fun state ->
-        fit_cond b state >>= fun state -> 
-        ok state
-    | Or(a, b) ->
-        let errs1, states1 = fit_cond a state
-        let errs2, states2 = fit_cond b state
-        errs1 @ errs2, states1 @ states2
-    | Not a ->
+    | And(a, b)   -> for_and a b state
+    | Or(a, b)    -> for_or  a b state
+    | Imply(a, b) -> for_or (Not a) b state 
+        
+    | Not (And(a, b)) -> for_or (Not a) (Not b) state
+    | Not (Or(a, b))  -> for_and (Not a) (Not a) state
+    | Not (Not a)     -> fit_cond a state
+    | Not (Imply(a, b)) -> for_and a (Not b) state
+    | Not (Eq _ as a)  ->
         ok {state with negations = a :: state.negations}
-    | Imply(a, b) ->
-        let errs, states = 
-            fit_cond a state >>= fun state' ->
-            fit_cond b state' >>= fun state' -> 
-            ok state'
-        let state = {
-            state with
-                negations = a :: state.negations
-        }
-        errs, state :: states
 
 and unify l r state = 
     let rec unify l r (state: state) = 
