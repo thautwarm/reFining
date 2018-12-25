@@ -29,13 +29,12 @@ let rec fit_cond cond state =
         ok state
     | And(a, b)   -> for_and a b state
     | Or(a, b)    -> for_or  a b state
-    | Imply(a, b) -> for_or (Not a) b state 
-        
-    | Not (And(a, b)) -> for_or (Not a) (Not b) state
-    | Not (Or(a, b))  -> for_and (Not a) (Not a) state
-    | Not (Not a)     -> fit_cond a state
+    | Imply(a, b) -> for_or (Not a) (And(a, b)) state 
+    | Not (And(a, b))   -> for_or (Not a) (Not b) state
+    | Not (Or(a, b))    -> for_and (Not a) (Not a) state
+    | Not (Not a)       -> fit_cond a state
     | Not (Imply(a, b)) -> for_and a (Not b) state
-    | Not (Eq _ as a)  ->
+    | Not (Eq _ as a)   ->
         ok {state with negations = a :: state.negations}
 
 and unify l r state = 
